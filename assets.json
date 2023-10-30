@@ -1,0 +1,10 @@
+{
+  "images": { "full": "assets/Full.png" },
+  "fonts": {
+    "term": {
+      "path": "assets/BigBlueTerm437NerdFontMono-Regular.ttf",
+      "size": 32
+    },
+    "square": { "path": "assets/KreativeSquareSM.ttf", "size": 32 }
+  }
+}
