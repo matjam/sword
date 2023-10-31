@@ -16,6 +16,8 @@ type Room struct {
 	Y      int
 	Width  int
 	Height int
+
+	Region int
 }
 
 type MapGenerator struct {
@@ -40,7 +42,7 @@ func NewMapGenerator(width int, height int) *MapGenerator {
 
 func (mg *MapGenerator) Generate() {
 	// This generate algorithm uses the "rooms and corridors" method as described
-	// in this article: https://journal.stuffwithstuff.com/2014/12/21/rooms-and-corridors/
+	// in this article: https://journal.stuffwithstuff.com/2014/12/21/rooms-and-mazes/
 	//
 	// The basic idea is that we start with a blank map, and then we add rooms to
 	// the map. We do this by picking a random room size and position, and
@@ -61,6 +63,9 @@ func (mg *MapGenerator) Generate() {
 	// a randomized flood fill algorithm. Run this on every solid region between the
 	// rooms and we're left with the entire dungeon packed full of disconnected rooms
 	// and mazes.
+	//
+	// We then iterate over every tile in the dungeon again. When we find a wall tile
+	// that 
 
 	mg.generateRooms()
 	mg.generateCorridors()

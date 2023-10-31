@@ -1,35 +1,31 @@
 package tilemap
 
-import (
-	"image/color"
-
-	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/text"
-	"golang.org/x/image/font"
-)
+import "fmt"
 
 //go:generate go-enum --marshal
 
-// ENUM(wall, door, corridor, floor, stairs, water, lava, trap, rubble, grass, tree, bush, rock, dirt, sand, bridge, void)
+// ENUM(wall, closed_door, open_door, floor, stairs_up, stairs_down)
 type TileType uint8
 
+// Tile is a single tile in a tilemap. The Tile struct holds information about
+// whether the tile has been seen by the player, and what region it belongs to
+// which is used during map generation.
 type Tile struct {
 	Type TileType
+	Region int
+	Seen bool
 }
 
+// TileMap is a map of tiles. It holds information about the size of the map,
+// and a slice of tiles. TileMaps do not handle any the rendering of the map,
+// they only hold the data.
 type TileMap struct {
 	Width  int
 	Height int
 	Tiles []Tile
-
-	fontFace *font.Face
 }
 
-func (tm *TileMap) WithFont(fontFace *font.Face) *TileMap {
-	tm.fontFace = fontFace
-	return tm
-}
-
+// NewTileMap creates a new TileMap with the given width and height.
 func NewTileMap(width int, height int) *TileMap {
 	tm := &TileMap{
 		Width:  width,
@@ -43,6 +39,8 @@ func NewTileMap(width int, height int) *TileMap {
 	return tm
 }
 
+// GetTile returns the tile at the given position. If the position is outside
+// the bounds of the map, it returns nil.
 func (tm *TileMap) GetTile(x int, y int) *Tile {
 	if x < 0 || x >= tm.Width || y < 0 || y >= tm.Height {
 		return nil
@@ -50,6 +48,8 @@ func (tm *TileMap) GetTile(x int, y int) *Tile {
 	return &tm.Tiles[y*tm.Width+x]
 }
 
+// SetTile sets the tile at the given position to the given tile. If the
+// position is outside the bounds of the map, it does nothing.
 func (tm *TileMap) SetTile(x int, y int, tile *Tile) {
 	if x < 0 || x >= tm.Width || y < 0 || y >= tm.Height {
 		return
@@ -57,20 +57,163 @@ func (tm *TileMap) SetTile(x int, y int, tile *Tile) {
 	tm.Tiles[y*tm.Width+x] = *tile
 }
 
-func (tm *TileMap) Draw(screen *ebiten.Image) {
+// IsVisible returns true if the tile at the given position is visible to the
+// second tile at the given position. If either of the positions are outside
+// the bounds of the map, it returns false. This is calculated dynamically by
+// performing a line of sight check between the two tiles.
+func (tm *TileMap) IsVisible(x1 int, y1 int, x2 int, y2 int) bool {
+	// If either of the positions are outside the bounds of the map, we return
+	// false.
+	if x1 < 0 || x1 >= tm.Width || y1 < 0 || y1 >= tm.Height ||
+		x2 < 0 || x2 >= tm.Width || y2 < 0 || y2 >= tm.Height {
+		return false
+	}
+
+	// We get the tile at the first position.
+	tile1 := tm.GetTile(x1, y1)
+
+	// If the tile at the first position is nil, we return false.
+	if tile1 == nil {
+		return false
+	}
+
+	// We get the tile at the second position.
+	tile2 := tm.GetTile(x2, y2)
+
+	// If the tile at the second position is nil, we return false.
+	if tile2 == nil {
+		return false
+	}
+
+	// If the tile at the first position is a wall, we return false.
+	if tile1.Type == TileTypeWall {
+		return false
+	}
+
+	// check every tile between the two tiles to see if they are walls or
+	// closed doors. If they are, we return false.
+	for _, tile := range tm.GetTilesBetween(x1, y1, x2, y2) {
+		if tile.Type == TileTypeWall || tile.Type == TileTypeClosedDoor {
+			return false
+		}
+	}
+
+	// If we get here, we return true.
+	return true
+}
+
+// GetTilesBetween returns a slice of tiles between the two given positions.
+// Obviously this needs to use some cool vector math to work out what tiles are
+// between the two positions. This uses the Bresenham's line algorithm to
+// calculate the tiles between the two positions.
+func (tm *TileMap) GetTilesBetween(x1 int, y1 int, x2 int, y2 int) []Tile {
+	// We create a slice of tiles to hold the tiles between the two positions.
+	tiles := []Tile{}
+
+	// We calculate the difference between the two positions.
+	dx := x2 - x1
+	dy := y2 - y1
+
+	// We calculate the absolute value of the difference between the two
+	// positions.
+	ax := abs(dx)
+	ay := abs(dy)
+
+	// We calculate the sign of the difference between the two positions.
+	sx := sign(dx)
+	sy := sign(dy)
+
+	// We calculate the error.
+	err := ax - ay
+
+	// We loop until we reach the second position.
+	for {
+		// We get the tile at the first position.
+		tile := tm.GetTile(x1, y1)
+
+		// If the tile is not nil, we append it to the slice of tiles.
+		if tile != nil {
+			tiles = append(tiles, *tile)
+		}
+
+		// If we have reached the second position, we break out of the loop.
+		if x1 == x2 && y1 == y2 {
+			break
+		}
+
+		// We calculate the error2.
+		err2 := err * 2
+
+		// If the error2 is greater than the negative difference between the
+		// two positions, we subtract the difference from the error and
+		// increment the first position by the sign of the difference between
+		// the two positions.
+		if err2 > -ay {
+			err -= ay
+			x1 += sx
+		}
+
+		// If the error2 is less than the positive difference between the two
+		// positions, we add the difference to the error and increment the
+		// second position by the sign of the difference between the two
+		// positions.
+
+		if err2 < ax {
+			err += ax
+			y1 += sy
+		}
+	}
+	
+	// We return the slice of tiles.
+	return tiles
+}
+
+func abs(x int) int {
+    if x < 0 {
+        return -x
+    }
+    return x
+}
+
+func sign(x int) int {
+    if x < 0 {
+        return -1
+    } else if x > 0 {
+        return 1
+    }
+    return 0
+}
+
+// Dump dumps an ascii representation of the tilemap to stdout.
+//
+// walls are #
+// closed doors are +
+// open doors are /
+// floors are .
+// stairs up are <
+// stairs down are >
+func (tm *TileMap) Dump() {
 	for y := 0; y < tm.Height; y++ {
 		for x := 0; x < tm.Width; x++ {
 			tile := tm.GetTile(x, y)
 			if tile == nil {
 				continue
 			}
-
 			switch tile.Type {
 			case TileTypeWall:
-				text.Draw(screen, "█", *tm.fontFace, x*32, y*32, color.White)
+				fmt.Printf("#")
+			case TileTypeClosedDoor:
+				fmt.Printf("+")
+			case TileTypeOpenDoor:
+				fmt.Printf("/")
 			case TileTypeFloor:
-				text.Draw(screen, "░", *tm.fontFace, x*32, y*32, color.White)
+				fmt.Printf(".")
+			case TileTypeStairsUp:
+				fmt.Printf("<")
+			case TileTypeStairsDown:
+				fmt.Printf(">")
 			}
 		}
+		fmt.Println()
 	}
 }

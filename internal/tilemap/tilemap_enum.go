@@ -14,62 +14,29 @@ import (
 const (
 	// TileTypeWall is a TileType of type Wall.
 	TileTypeWall TileType = iota
-	// TileTypeDoor is a TileType of type Door.
-	TileTypeDoor
-	// TileTypeCorridor is a TileType of type Corridor.
-	TileTypeCorridor
+	// TileTypeClosedDoor is a TileType of type Closed_door.
+	TileTypeClosedDoor
+	// TileTypeOpenDoor is a TileType of type Open_door.
+	TileTypeOpenDoor
 	// TileTypeFloor is a TileType of type Floor.
 	TileTypeFloor
-	// TileTypeStairs is a TileType of type Stairs.
-	TileTypeStairs
-	// TileTypeWater is a TileType of type Water.
-	TileTypeWater
-	// TileTypeLava is a TileType of type Lava.
-	TileTypeLava
-	// TileTypeTrap is a TileType of type Trap.
-	TileTypeTrap
-	// TileTypeRubble is a TileType of type Rubble.
-	TileTypeRubble
-	// TileTypeGrass is a TileType of type Grass.
-	TileTypeGrass
-	// TileTypeTree is a TileType of type Tree.
-	TileTypeTree
-	// TileTypeBush is a TileType of type Bush.
-	TileTypeBush
-	// TileTypeRock is a TileType of type Rock.
-	TileTypeRock
-	// TileTypeDirt is a TileType of type Dirt.
-	TileTypeDirt
-	// TileTypeSand is a TileType of type Sand.
-	TileTypeSand
-	// TileTypeBridge is a TileType of type Bridge.
-	TileTypeBridge
-	// TileTypeVoid is a TileType of type Void.
-	TileTypeVoid
+	// TileTypeStairsUp is a TileType of type Stairs_up.
+	TileTypeStairsUp
+	// TileTypeStairsDown is a TileType of type Stairs_down.
+	TileTypeStairsDown
 )
 
 var ErrInvalidTileType = errors.New("not a valid TileType")
 
-const _TileTypeName = "walldoorcorridorfloorstairswaterlavatraprubblegrasstreebushrockdirtsandbridgevoid"
+const _TileTypeName = "wallclosed_dooropen_doorfloorstairs_upstairs_down"
 
 var _TileTypeMap = map[TileType]string{
-	TileTypeWall:     _TileTypeName[0:4],
-	TileTypeDoor:     _TileTypeName[4:8],
-	TileTypeCorridor: _TileTypeName[8:16],
-	TileTypeFloor:    _TileTypeName[16:21],
-	TileTypeStairs:   _TileTypeName[21:27],
-	TileTypeWater:    _TileTypeName[27:32],
-	TileTypeLava:     _TileTypeName[32:36],
-	TileTypeTrap:     _TileTypeName[36:40],
-	TileTypeRubble:   _TileTypeName[40:46],
-	TileTypeGrass:    _TileTypeName[46:51],
-	TileTypeTree:     _TileTypeName[51:55],
-	TileTypeBush:     _TileTypeName[55:59],
-	TileTypeRock:     _TileTypeName[59:63],
-	TileTypeDirt:     _TileTypeName[63:67],
-	TileTypeSand:     _TileTypeName[67:71],
-	TileTypeBridge:   _TileTypeName[71:77],
-	TileTypeVoid:     _TileTypeName[77:81],
+	TileTypeWall:       _TileTypeName[0:4],
+	TileTypeClosedDoor: _TileTypeName[4:15],
+	TileTypeOpenDoor:   _TileTypeName[15:24],
+	TileTypeFloor:      _TileTypeName[24:29],
+	TileTypeStairsUp:   _TileTypeName[29:38],
+	TileTypeStairsDown: _TileTypeName[38:49],
 }
 
 // String implements the Stringer interface.
@@ -89,22 +56,11 @@ func (x TileType) IsValid() bool {
 
 var _TileTypeValue = map[string]TileType{
 	_TileTypeName[0:4]:   TileTypeWall,
-	_TileTypeName[4:8]:   TileTypeDoor,
-	_TileTypeName[8:16]:  TileTypeCorridor,
-	_TileTypeName[16:21]: TileTypeFloor,
-	_TileTypeName[21:27]: TileTypeStairs,
-	_TileTypeName[27:32]: TileTypeWater,
-	_TileTypeName[32:36]: TileTypeLava,
-	_TileTypeName[36:40]: TileTypeTrap,
-	_TileTypeName[40:46]: TileTypeRubble,
-	_TileTypeName[46:51]: TileTypeGrass,
-	_TileTypeName[51:55]: TileTypeTree,
-	_TileTypeName[55:59]: TileTypeBush,
-	_TileTypeName[59:63]: TileTypeRock,
-	_TileTypeName[63:67]: TileTypeDirt,
-	_TileTypeName[67:71]: TileTypeSand,
-	_TileTypeName[71:77]: TileTypeBridge,
-	_TileTypeName[77:81]: TileTypeVoid,
+	_TileTypeName[4:15]:  TileTypeClosedDoor,
+	_TileTypeName[15:24]: TileTypeOpenDoor,
+	_TileTypeName[24:29]: TileTypeFloor,
+	_TileTypeName[29:38]: TileTypeStairsUp,
+	_TileTypeName[38:49]: TileTypeStairsDown,
 }
 
 // ParseTileType attempts to convert a string to a TileType.
