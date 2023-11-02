@@ -18,10 +18,13 @@ import (
 
 const dpi = 72
 
+var globalAssetManager *AssetManager
+
 type AssetManager struct {
-	images map[string]*image.Image
-	tiles  map[string][]*ebiten.Image
-	fonts  map[string]*font.Face
+	images    map[string]*image.Image
+	tiles     map[string][]*ebiten.Image
+	fonts     map[string]font.Face
+	fontSizes map[string]int
 }
 
 type fontConfig struct {
@@ -34,11 +37,16 @@ type assetConfig struct {
 	Fonts  map[string]fontConfig `json:"fonts"`
 }
 
-func NewAssetManager() *AssetManager {
+func StartAssetManager() {
+	if globalAssetManager != nil {
+		log.Fatal("asset manager already started")
+	}
+
 	m := AssetManager{
-		images: make(map[string]*image.Image),
-		tiles:  make(map[string][]*ebiten.Image),
-		fonts:  make(map[string]*font.Face),
+		images:    make(map[string]*image.Image),
+		tiles:     make(map[string][]*ebiten.Image),
+		fonts:     make(map[string]font.Face),
+		fontSizes: make(map[string]int),
 	}
 
 	// load config
@@ -62,7 +70,7 @@ func NewAssetManager() *AssetManager {
 		m.loadFont(fontConfig.Path, name, fontConfig.Size)
 	}
 
-	return &m
+	globalAssetManager = &m
 }
 
 func (am *AssetManager) loadImage(path string, name string) {
@@ -124,7 +132,8 @@ func (am *AssetManager) loadFont(fontPath string, name string, size float64) {
 		log.Fatal(err)
 	}
 
-	am.fonts[name] = &f
+	am.fonts[name] = f
+	am.fontSizes[name] = int(size)
 
 	slog.Infof("font: loaded %v:%v", name, fontPath)
 }
@@ -133,6 +142,22 @@ func (am *AssetManager) GetImage(name string) *image.Image {
 	return am.images[name]
 }
 
-func (am *AssetManager) GetFont(name string) *font.Face {
+func (am *AssetManager) GetFont(name string) font.Face {
 	return am.fonts[name]
+}
+
+func (am *AssetManager) GetFontSize(name string) int {
+	return am.fontSizes[name]
+}
+
+func GetFont(name string) font.Face {
+	return globalAssetManager.GetFont(name)
+}
+
+func GetFontSize(name string) int {
+	return globalAssetManager.GetFontSize(name)
+}
+
+func GetImage(name string) *image.Image {
+	return globalAssetManager.GetImage(name)
 }

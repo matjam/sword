@@ -1,8 +1,24 @@
 package tilemap
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/hajimehoshi/ebiten/v2"
+)
 
 //go:generate go-enum --marshal
+
+type Renderer interface {
+	// Draw is called every frame to draw the tilemap to the screen.
+	Draw(dst *ebiten.Image, x int, y int, viewport Rectangle)
+}
+
+type Rectangle struct {
+	X      int
+	Y      int
+	Width  int
+	Height int
+}
 
 // ENUM(wall, closed_door, open_door, floor, stairs_up, stairs_down)
 type TileType uint8
