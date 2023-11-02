@@ -11,23 +11,25 @@ type TileType uint8
 // whether the tile has been seen by the player, and what region it belongs to
 // which is used during map generation.
 type Tile struct {
-	Type TileType
-	Region int
-	Seen bool
+	Type       TileType
+	Region     int
+	Seen       bool
+	Visible    bool
+	LightLevel uint8
 }
 
-// TileMap is a map of tiles. It holds information about the size of the map,
-// and a slice of tiles. TileMaps do not handle any the rendering of the map,
+// Tilemap is a map of tiles. It holds information about the size of the map,
+// and a slice of tiles. Tilemaps do not handle any the rendering of the map,
 // they only hold the data.
-type TileMap struct {
+type Tilemap struct {
 	Width  int
 	Height int
-	Tiles []Tile
+	Tiles  []Tile
 }
 
-// NewTileMap creates a new TileMap with the given width and height.
-func NewTileMap(width int, height int) *TileMap {
-	tm := &TileMap{
+// NewTilemap creates a new Tilemap with the given width and height.
+func NewTilemap(width int, height int) *Tilemap {
+	tm := &Tilemap{
 		Width:  width,
 		Height: height,
 		Tiles:  make([]Tile, width*height),
@@ -41,7 +43,7 @@ func NewTileMap(width int, height int) *TileMap {
 
 // GetTile returns the tile at the given position. If the position is outside
 // the bounds of the map, it returns nil.
-func (tm *TileMap) GetTile(x int, y int) *Tile {
+func (tm *Tilemap) GetTile(x int, y int) *Tile {
 	if x < 0 || x >= tm.Width || y < 0 || y >= tm.Height {
 		return nil
 	}
@@ -50,7 +52,7 @@ func (tm *TileMap) GetTile(x int, y int) *Tile {
 
 // SetTile sets the tile at the given position to the given tile. If the
 // position is outside the bounds of the map, it does nothing.
-func (tm *TileMap) SetTile(x int, y int, tile *Tile) {
+func (tm *Tilemap) SetTile(x int, y int, tile *Tile) {
 	if x < 0 || x >= tm.Width || y < 0 || y >= tm.Height {
 		return
 	}
@@ -61,7 +63,7 @@ func (tm *TileMap) SetTile(x int, y int, tile *Tile) {
 // second tile at the given position. If either of the positions are outside
 // the bounds of the map, it returns false. This is calculated dynamically by
 // performing a line of sight check between the two tiles.
-func (tm *TileMap) IsVisible(x1 int, y1 int, x2 int, y2 int) bool {
+func (tm *Tilemap) IsVisible(x1 int, y1 int, x2 int, y2 int) bool {
 	// If either of the positions are outside the bounds of the map, we return
 	// false.
 	if x1 < 0 || x1 >= tm.Width || y1 < 0 || y1 >= tm.Height ||
@@ -106,7 +108,7 @@ func (tm *TileMap) IsVisible(x1 int, y1 int, x2 int, y2 int) bool {
 // Obviously this needs to use some cool vector math to work out what tiles are
 // between the two positions. This uses the Bresenham's line algorithm to
 // calculate the tiles between the two positions.
-func (tm *TileMap) GetTilesBetween(x1 int, y1 int, x2 int, y2 int) []Tile {
+func (tm *Tilemap) GetTilesBetween(x1 int, y1 int, x2 int, y2 int) []Tile {
 	// We create a slice of tiles to hold the tiles between the two positions.
 	tiles := []Tile{}
 
@@ -163,25 +165,25 @@ func (tm *TileMap) GetTilesBetween(x1 int, y1 int, x2 int, y2 int) []Tile {
 			y1 += sy
 		}
 	}
-	
+
 	// We return the slice of tiles.
 	return tiles
 }
 
 func abs(x int) int {
-    if x < 0 {
-        return -x
-    }
-    return x
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 func sign(x int) int {
-    if x < 0 {
-        return -1
-    } else if x > 0 {
-        return 1
-    }
-    return 0
+	if x < 0 {
+		return -1
+	} else if x > 0 {
+		return 1
+	}
+	return 0
 }
 
 // Dump dumps an ascii representation of the tilemap to stdout.
@@ -192,7 +194,7 @@ func sign(x int) int {
 // floors are .
 // stairs up are <
 // stairs down are >
-func (tm *TileMap) Dump() {
+func (tm *Tilemap) Dump() {
 	for y := 0; y < tm.Height; y++ {
 		for x := 0; x < tm.Width; x++ {
 			tile := tm.GetTile(x, y)

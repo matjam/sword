@@ -1,8 +1,7 @@
-package tileset
+package tilerender
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/matjam/sword/internal/tilemap"
 )
 
 // this package defines an interface for tileset renderer implementations.
@@ -15,12 +14,9 @@ import (
 // visible to the player. The tilemap does not know anything about the player
 // or the camera, so it cannot make these decisions.
 //
-// The tileset renderer needs to keep track of 
+// The tileset renderer needs to keep track of
 
 type Renderer interface {
-	// Init is called once when the renderer is first created.
-	Init(*tilemap.TileMap)
-
 	// Draw is called every frame to draw the tilemap to the screen.
 	Draw(*ebiten.Image)
 }

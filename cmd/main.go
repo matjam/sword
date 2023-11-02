@@ -13,7 +13,7 @@ import (
 
 type Game struct {
 	assetManager *assets.AssetManager
-	tileMap *tilemap.TileMap
+	tileMap *tilemap.Tilemap
 }
 
 func (g *Game) Update() error {
@@ -23,7 +23,7 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	text.Draw(screen, "██ Hello, World! ██", *g.assetManager.GetFont("square"), 40, 40, color.White)
 
-	g.tileMap.Draw(screen)
+	text.Draw(screen, "Just some normal text█", *g.assetManager.GetFont("mono"), 40, 100, color.RGBA{0xff, 0x00, 0x00, 0xff})
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -42,7 +42,7 @@ func main() {
 	game.assetManager = assets.NewAssetManager()
 
 	slog.Info("creating tilemap ...")
-	game.tileMap = tilemap.NewTileMap(200, 120).WithFont(game.assetManager.GetFont("square"))
+	game.tileMap = tilemap.NewTilemap(200, 120)
 
 	ebiten.SetWindowSize(1280, 768)
 	ebiten.SetWindowTitle("Hello, World!")

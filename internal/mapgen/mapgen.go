@@ -24,18 +24,18 @@ type MapGenerator struct {
 	Width  int
 	Height int
 
-	TileMap *tilemap.TileMap
+	Tilemap *tilemap.Tilemap
 
-	roomList []*Room
+	roomList            []*Room
 	unconnectedRoomList []*Room
 }
 
 func NewMapGenerator(width int, height int) *MapGenerator {
 	return &MapGenerator{
-		Width:  width,
-		Height: height,
-		TileMap: tilemap.NewTileMap(width, height),
-		roomList: make([]*Room, 0),
+		Width:               width,
+		Height:              height,
+		Tilemap:             tilemap.NewTilemap(width, height),
+		roomList:            make([]*Room, 0),
 		unconnectedRoomList: make([]*Room, 0),
 	}
 }
@@ -65,11 +65,11 @@ func (mg *MapGenerator) Generate() {
 	// and mazes.
 	//
 	// We then iterate over every tile in the dungeon again. When we find a wall tile
-	// that 
+	// that
 
 	mg.generateRooms()
 	mg.generateCorridors()
-}	
+}
 
 func (mg *MapGenerator) generateRooms() {
 	// The generateRooms() method is where we generate the rooms. We do this by
@@ -79,7 +79,7 @@ func (mg *MapGenerator) generateRooms() {
 	// can't fit any more rooms into the map.
 
 	// We start with a blank tilemap.
-	mg.TileMap = tilemap.NewTileMap(mg.Width, mg.Height)
+	mg.Tilemap = tilemap.NewTilemap(mg.Width, mg.Height)
 
 	// pick a total number of rooms based on the map size
 	roomCount := 10 + rand.Intn(mg.Width*mg.Height/100)
@@ -106,7 +106,7 @@ func (mg *MapGenerator) generateRooms() {
 			}
 
 			// We check if the room fits in the map.
-			roomFits = mg.roomFits(room) 
+			roomFits = mg.roomFits(room)
 		}
 		mg.addRoom(room)
 	}
@@ -138,7 +138,7 @@ func (mg *MapGenerator) addRoom(room Room) {
 	for y := room.Y; y < room.Y+room.Height; y++ {
 		for x := room.X; x < room.X+room.Width; x++ {
 			// We set the tile at the current position to the correct type.
-			mg.TileMap.SetTile(x, y, &tilemap.Tile{
+			mg.Tilemap.SetTile(x, y, &tilemap.Tile{
 				Type: tilemap.TileTypeFloor,
 			})
 		}
@@ -155,10 +155,10 @@ func (mg *MapGenerator) generateCorridors() {
 	// that point.
 
 	// We loop through all the tiles in the dungeon.
-	for y := 1; y < mg.Height; y=y+2 {
-		for x := 1; x < mg.Width; x=x+2 {
+	for y := 1; y < mg.Height; y = y + 2 {
+		for x := 1; x < mg.Width; x = x + 2 {
 			// We check if the tile is solid and if it's surrounded by wall tiles.
-			if mg.TileMap.GetTile(x, y).Type == tilemap.TileTypeWall &&
+			if mg.Tilemap.GetTile(x, y).Type == tilemap.TileTypeWall &&
 				mg.isSurroundedByTileType(x, y, tilemap.TileTypeWall) {
 				// If it is, we run a maze generator at that point.
 				mg.generateMaze(x, y)
@@ -167,24 +167,23 @@ func (mg *MapGenerator) generateCorridors() {
 	}
 }
 
-
 func (mg *MapGenerator) generateMaze(x int, y int) {
 	// The generateMaze() method is where we generate a maze. We do this by
 	// running a maze generator at a given point.
 
 	// pick a random direction to start with
 	direction := rand.Intn(4)
-	
+
 	// loop until we hit a dead end
 	for {
 		// dig out the next two tiles in the current direction
-		mg.TileMap.SetTile(x, y, &tilemap.Tile{
+		mg.Tilemap.SetTile(x, y, &tilemap.Tile{
 			Type: tilemap.TileTypeFloor,
 		})
-		mg.TileMap.SetTile(x+((direction+1)%2)*2-1, y+(direction%2)*2-1, &tilemap.Tile{
+		mg.Tilemap.SetTile(x+((direction+1)%2)*2-1, y+(direction%2)*2-1, &tilemap.Tile{
 			Type: tilemap.TileTypeFloor,
 		})
-		mg.TileMap.SetTile(x+((direction+1)%2)*2, y+(direction%2)*2, &tilemap.Tile{
+		mg.Tilemap.SetTile(x+((direction+1)%2)*2, y+(direction%2)*2, &tilemap.Tile{
 			Type: tilemap.TileTypeFloor,
 		})
 
@@ -203,7 +202,6 @@ func (mg *MapGenerator) generateMaze(x int, y int) {
 	}
 }
 
-
 func (mg *MapGenerator) isSurroundedByTileType(x int, y int, tt tilemap.TileType) bool {
 	// The isSurroundedByTileType() method is where we check if a tile is
 	// surrounded by a specific tile type. We do this by checking if the tiles
@@ -213,7 +211,7 @@ func (mg *MapGenerator) isSurroundedByTileType(x int, y int, tt tilemap.TileType
 	for i := -1; i <= 1; i++ {
 		for j := -1; j <= 1; j++ {
 			// We check if the tile is the specified tile type.
-			if mg.TileMap.GetTile(x+i, y+j).Type != tt {
+			if mg.Tilemap.GetTile(x+i, y+j).Type != tt {
 				// If it isn't, we return false.
 				return false
 			}
