@@ -1,13 +1,18 @@
 package component
 
-import "github.com/gravestench/akara"
+import (
+	"github.com/matjam/sword/internal/ecs"
+)
 
+// Location is the location of an entity on the Grid.
 type Location struct {
 	X, Y int
 }
 
-func (*Location) New() akara.Component {
+func (*Location) New() ecs.Component {
 	return &Location{}
 }
 
-var _ akara.Component = &Location{}
+func (*Location) Name() string {
+	return "Location"
+}

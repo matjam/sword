@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/gookit/slog v0.5.4
+	github.com/gravestench/akara v0.0.0-20230224041127-01aaae59149c
 	github.com/hajimehoshi/ebiten/v2 v2.6.2
 	github.com/tdewolff/canvas v0.0.0-20231102134958-6de43c767dbf
 	golang.org/x/image v0.13.0
@@ -16,7 +17,6 @@ require (
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/gookit/goutil v0.6.14 // indirect
 	github.com/gookit/gsr v0.1.0 // indirect
-	github.com/gravestench/akara v0.0.0-20230224041127-01aaae59149c // indirect
 	github.com/gravestench/bitset v0.0.0-20210906032249-537b6b7a3398 // indirect
 	github.com/jezek/xgb v1.1.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect

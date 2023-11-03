@@ -11,7 +11,7 @@ import (
 )
 
 type Game struct {
-	tm         *tilemap.Tilemap
+	tm         *tilemap.Grid
 	tmRenderer tilemap.Renderer
 }
 
@@ -45,7 +45,7 @@ func main() {
 	assets.StartAssetManager()
 
 	slog.Info("creating tilemap ...")
-	game.tm = tilemap.NewTilemap(200, 120)
+	game.tm = tilemap.NewGrid(200, 120)
 
 	// lets clear out a room
 

@@ -1,4 +1,10 @@
+// Package tilemap implements a tilemap. It holds a grid of tiles. Rendering
+// is handled by separate renderers implemented for specific target displays.
+// For example, there is a renderer for the terminal, and a renderer for a
+// graphical display.
 package tilemap
+
+//go:generate go-enum --marshal
 
 import (
 	"fmt"
@@ -6,10 +12,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-//go:generate go-enum --marshal
-
 type Renderer interface {
-	// Draw is called every frame to draw the tilemap to the screen.
+	// Draw is called every frame to draw the grid to the screen.
 	Draw(dst *ebiten.Image, x int, y int, viewport Rectangle)
 }
 
@@ -23,7 +27,7 @@ type Rectangle struct {
 // ENUM(wall, closed_door, open_door, floor, stairs_up, stairs_down)
 type TileType uint8
 
-// Tile is a single tile in a tilemap. The Tile struct holds information about
+// Tile is a single tile in a grid. The Tile struct holds information about
 // whether the tile has been seen by the player, and what region it belongs to
 // which is used during map generation.
 type Tile struct {
@@ -34,18 +38,18 @@ type Tile struct {
 	LightLevel uint8
 }
 
-// Tilemap is a map of tiles. It holds information about the size of the map,
-// and a slice of tiles. Tilemaps do not handle any the rendering of the map,
+// Grid is a map of tiles. It holds information about the size of the map,
+// and a slice of tiles. Grids do not handle any the rendering of the map,
 // they only hold the data.
-type Tilemap struct {
+type Grid struct {
 	Width  int
 	Height int
 	Tiles  []Tile
 }
 
-// NewTilemap creates a new Tilemap with the given width and height.
-func NewTilemap(width int, height int) *Tilemap {
-	tm := &Tilemap{
+// NewGrid creates a new Grid with the given width and height.
+func NewGrid(width int, height int) *Grid {
+	tm := &Grid{
 		Width:  width,
 		Height: height,
 		Tiles:  make([]Tile, width*height),
@@ -59,7 +63,7 @@ func NewTilemap(width int, height int) *Tilemap {
 
 // GetTile returns the tile at the given position. If the position is outside
 // the bounds of the map, it returns nil.
-func (tm *Tilemap) GetTile(x int, y int) *Tile {
+func (tm *Grid) GetTile(x int, y int) *Tile {
 	if x < 0 || x >= tm.Width || y < 0 || y >= tm.Height {
 		return nil
 	}
@@ -68,7 +72,7 @@ func (tm *Tilemap) GetTile(x int, y int) *Tile {
 
 // SetTile sets the tile at the given position to the given tile. If the
 // position is outside the bounds of the map, it does nothing.
-func (tm *Tilemap) SetTile(x int, y int, tile *Tile) {
+func (tm *Grid) SetTile(x int, y int, tile *Tile) {
 	if x < 0 || x >= tm.Width || y < 0 || y >= tm.Height {
 		return
 	}
@@ -79,7 +83,7 @@ func (tm *Tilemap) SetTile(x int, y int, tile *Tile) {
 // second tile at the given position. If either of the positions are outside
 // the bounds of the map, it returns false. This is calculated dynamically by
 // performing a line of sight check between the two tiles.
-func (tm *Tilemap) IsVisible(x1 int, y1 int, x2 int, y2 int) bool {
+func (tm *Grid) IsVisible(x1 int, y1 int, x2 int, y2 int) bool {
 	// If either of the positions are outside the bounds of the map, we return
 	// false.
 	if x1 < 0 || x1 >= tm.Width || y1 < 0 || y1 >= tm.Height ||
@@ -124,7 +128,7 @@ func (tm *Tilemap) IsVisible(x1 int, y1 int, x2 int, y2 int) bool {
 // Obviously this needs to use some cool vector math to work out what tiles are
 // between the two positions. This uses the Bresenham's line algorithm to
 // calculate the tiles between the two positions.
-func (tm *Tilemap) GetTilesBetween(x1 int, y1 int, x2 int, y2 int) []Tile {
+func (tm *Grid) GetTilesBetween(x1 int, y1 int, x2 int, y2 int) []Tile {
 	// We create a slice of tiles to hold the tiles between the two positions.
 	tiles := []Tile{}
 
@@ -202,7 +206,7 @@ func sign(x int) int {
 	return 0
 }
 
-// Dump dumps an ascii representation of the tilemap to stdout.
+// Dump dumps an ascii representation of the grid to stdout.
 //
 // walls are #
 // closed doors are +
@@ -210,7 +214,7 @@ func sign(x int) int {
 // floors are .
 // stairs up are <
 // stairs down are >
-func (tm *Tilemap) Dump() {
+func (tm *Grid) Dump() {
 	for y := 0; y < tm.Height; y++ {
 		for x := 0; x < tm.Width; x++ {
 			tile := tm.GetTile(x, y)

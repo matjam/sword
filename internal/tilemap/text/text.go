@@ -1,7 +1,7 @@
 package text
 
 // package text implements a simple text based tileset renderer. It will render
-// a given Tilemap using the font given to it.
+// a given Grid using the font given to it.
 
 import (
 	"image/color"
@@ -15,14 +15,14 @@ import (
 
 type Renderer struct {
 	// The tilemap to render
-	tilemap *tilemap.Tilemap
+	tilemap *tilemap.Grid
 	// The font to use for rendering
 	tilefont font.Face
 	// The size of the font
 	size int
 }
 
-func NewRenderer(tilemap *tilemap.Tilemap, fontName string) tilemap.Renderer {
+func NewRenderer(tilemap *tilemap.Grid, fontName string) tilemap.Renderer {
 	return &Renderer{
 		tilemap:  tilemap,
 		tilefont: assets.GetFont(fontName),

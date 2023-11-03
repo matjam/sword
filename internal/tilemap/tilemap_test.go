@@ -6,8 +6,8 @@ import (
 	"github.com/matjam/sword/internal/tilemap"
 )
 
-func TestNewTilemap(t *testing.T) {
-	tm := tilemap.NewTilemap(10, 10)
+func TestNewGrid(t *testing.T) {
+	tm := tilemap.NewGrid(10, 10)
 	if tm.Width != 10 {
 		t.Errorf("expected width to be 10, got %d", tm.Width)
 	}
@@ -20,7 +20,7 @@ func TestNewTilemap(t *testing.T) {
 }
 
 func TestGetTile(t *testing.T) {
-	tm := tilemap.NewTilemap(10, 10)
+	tm := tilemap.NewGrid(10, 10)
 	tile := tm.GetTile(0, 0)
 	if tile == nil {
 		t.Errorf("expected tile to not be nil")
@@ -32,7 +32,7 @@ func TestGetTile(t *testing.T) {
 }
 
 func TestSetTile(t *testing.T) {
-	tm := tilemap.NewTilemap(10, 10)
+	tm := tilemap.NewGrid(10, 10)
 	tile := tilemap.Tile{
 		Type: tilemap.TileTypeFloor,
 	}
@@ -44,7 +44,7 @@ func TestSetTile(t *testing.T) {
 }
 
 func TestIsVisible(t *testing.T) {
-	tm := tilemap.NewTilemap(10, 10)
+	tm := tilemap.NewGrid(10, 10)
 	tile := tilemap.Tile{
 		Type: tilemap.TileTypeFloor,
 	}

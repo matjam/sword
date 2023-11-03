@@ -24,7 +24,7 @@ type MapGenerator struct {
 	Width  int
 	Height int
 
-	Tilemap *tilemap.Tilemap
+	Grid *tilemap.Grid
 
 	roomList            []*Room
 	unconnectedRoomList []*Room
@@ -34,7 +34,7 @@ func NewMapGenerator(width int, height int) *MapGenerator {
 	return &MapGenerator{
 		Width:               width,
 		Height:              height,
-		Tilemap:             tilemap.NewTilemap(width, height),
+		Grid:                tilemap.NewGrid(width, height),
 		roomList:            make([]*Room, 0),
 		unconnectedRoomList: make([]*Room, 0),
 	}
@@ -79,7 +79,7 @@ func (mg *MapGenerator) generateRooms() {
 	// can't fit any more rooms into the map.
 
 	// We start with a blank tilemap.
-	mg.Tilemap = tilemap.NewTilemap(mg.Width, mg.Height)
+	mg.Grid = tilemap.NewGrid(mg.Width, mg.Height)
 
 	// pick a total number of rooms based on the map size
 	roomCount := 10 + rand.Intn(mg.Width*mg.Height/100)
@@ -138,7 +138,7 @@ func (mg *MapGenerator) addRoom(room Room) {
 	for y := room.Y; y < room.Y+room.Height; y++ {
 		for x := room.X; x < room.X+room.Width; x++ {
 			// We set the tile at the current position to the correct type.
-			mg.Tilemap.SetTile(x, y, &tilemap.Tile{
+			mg.Grid.SetTile(x, y, &tilemap.Tile{
 				Type: tilemap.TileTypeFloor,
 			})
 		}
@@ -158,7 +158,7 @@ func (mg *MapGenerator) generateCorridors() {
 	for y := 1; y < mg.Height; y = y + 2 {
 		for x := 1; x < mg.Width; x = x + 2 {
 			// We check if the tile is solid and if it's surrounded by wall tiles.
-			if mg.Tilemap.GetTile(x, y).Type == tilemap.TileTypeWall &&
+			if mg.Grid.GetTile(x, y).Type == tilemap.TileTypeWall &&
 				mg.isSurroundedByTileType(x, y, tilemap.TileTypeWall) {
 				// If it is, we run a maze generator at that point.
 				mg.generateMaze(x, y)
@@ -177,13 +177,13 @@ func (mg *MapGenerator) generateMaze(x int, y int) {
 	// loop until we hit a dead end
 	for {
 		// dig out the next two tiles in the current direction
-		mg.Tilemap.SetTile(x, y, &tilemap.Tile{
+		mg.Grid.SetTile(x, y, &tilemap.Tile{
 			Type: tilemap.TileTypeFloor,
 		})
-		mg.Tilemap.SetTile(x+((direction+1)%2)*2-1, y+(direction%2)*2-1, &tilemap.Tile{
+		mg.Grid.SetTile(x+((direction+1)%2)*2-1, y+(direction%2)*2-1, &tilemap.Tile{
 			Type: tilemap.TileTypeFloor,
 		})
-		mg.Tilemap.SetTile(x+((direction+1)%2)*2, y+(direction%2)*2, &tilemap.Tile{
+		mg.Grid.SetTile(x+((direction+1)%2)*2, y+(direction%2)*2, &tilemap.Tile{
 			Type: tilemap.TileTypeFloor,
 		})
 
@@ -211,7 +211,7 @@ func (mg *MapGenerator) isSurroundedByTileType(x int, y int, tt tilemap.TileType
 	for i := -1; i <= 1; i++ {
 		for j := -1; j <= 1; j++ {
 			// We check if the tile is the specified tile type.
-			if mg.Tilemap.GetTile(x+i, y+j).Type != tt {
+			if mg.Grid.GetTile(x+i, y+j).Type != tt {
 				// If it isn't, we return false.
 				return false
 			}
