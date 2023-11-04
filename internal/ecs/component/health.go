@@ -6,16 +6,21 @@ import (
 
 // Health is the health of an entity.
 type Health struct {
+	id      ecs.ID
 	Max     int
 	Current int
 }
 
-func (*Health) New() ecs.Component {
-	return &Health{}
+func (*Health) New(id ecs.ID) ecs.Component {
+	return &Drawable{id: id}
+}
+
+func (h *Health) ID() ecs.ID {
+	return h.id
 }
 
 func (*Health) Name() string {
-	return "Health"
+	return "health"
 }
 
 // Damage deals damage to the entity and returns the current health.

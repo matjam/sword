@@ -7,6 +7,7 @@ import (
 )
 
 type Drawable struct {
+	id ecs.ID
 	// Glyph is the rune to draw for text based rendering.
 	Glyph rune
 	// Color is the color to draw the glyph.
@@ -15,12 +16,16 @@ type Drawable struct {
 	Sprite *ebiten.Image
 }
 
-func (*Drawable) New() ecs.Component {
-	return &Drawable{}
+func (*Drawable) New(id ecs.ID) ecs.Component {
+	return &Drawable{id: id}
+}
+
+func (d *Drawable) ID() ecs.ID {
+	return d.id
 }
 
 func (*Drawable) Name() string {
-	return "Drawable"
+	return "drawable"
 }
 
 // Draw draws the entity to the screen.

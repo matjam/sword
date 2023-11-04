@@ -11,6 +11,8 @@ require (
 )
 
 require (
+	github.com/deckarep/golang-set v1.8.0 // indirect
+	github.com/deckarep/golang-set/v2 v2.3.1 // indirect
 	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/ebitengine/purego v0.5.0 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect

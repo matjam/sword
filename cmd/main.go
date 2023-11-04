@@ -19,7 +19,7 @@ func (g *Game) Update() error {
 	return nil
 }
 
-func (g *Game) Draw(screen *ebiten.Image) {
+func (g *Game) Draw(screen *ebiten.Image) { 
 	g.tmRenderer.Draw(screen, 20, 40,
 		tilemap.Rectangle{
 			X:      0,

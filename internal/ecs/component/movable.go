@@ -9,15 +9,19 @@ import (
 // to the number of grid spaces to move in the X and Y directions in a
 // single turn.
 type Movable struct {
+	id ecs.ID
+
 	X, Y int
 }
 
-func (*Movable) New() ecs.Component {
-	return &Movable{}
+func (*Movable) New(id ecs.ID) ecs.Component {
+	return &Movable{id: id}
+}
+
+func (*Movable) ID() ecs.ID {
+	return 0
 }
 
 func (*Movable) Name() string {
-	return "Movable"
+	return "movable"
 }
-
-var _ ecs.Component = &Movable{}

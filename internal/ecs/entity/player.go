@@ -7,15 +7,17 @@ import (
 
 // Player is the player entity.
 type Player struct {
+	// id is the entity ID.
+	id ecs.ID
+
 	// Name is the name of the player.
 	Name string
-	// id is the entity ID.
-	id ecs.Entity
 }
 
 // NewPlayer returns a new player entity.
-func NewPlayer(world *ecs.World, name string) *Player {
+func NewPlayer(world *ecs.World, name string, id ecs.ID) *Player {
 	p := &Player{
+		id:   id,
 		Name: name,
 	}
 
