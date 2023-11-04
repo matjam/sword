@@ -7,37 +7,29 @@ import (
 	"github.com/matjam/sword/internal/ecs/component"
 )
 
-type Movement struct {
-	world *ecs.World
-}
+type Movement struct{}
 
-func (*Movement) Name() string {
+func (*Movement) SystemName() string {
 	return "movement"
-}
-
-func (*Movement) New(world *ecs.World) ecs.System {
-	return &Movement{
-		world: world,
-	}
 }
 
 func (s *Movement) Components() []ecs.Component {
 	return []ecs.Component{
-		&component.Movable{},
+		&component.Move{},
 		&component.Location{},
 	}
 }
 
-func (s *Movement) Update(deltaTime time.Duration) {
+func (s *Movement) Update(world *ecs.World, deltaTime time.Duration) {
 	// get all entities with a movable and location component
-	entities := s.world.EntitiesForSystem(s)
+	entities := world.EntitiesForSystem(s)
 
 	for _, entity := range entities {
 		// get the movable component
-		movable := s.world.GetComponent(entity, &component.Movable{}).(*component.Movable)
+		movable := world.GetComponent(entity, &component.Move{}).(*component.Move)
 
 		// get the location component
-		location := s.world.GetComponent(entity, &component.Location{}).(*component.Location)
+		location := world.GetComponent(entity, &component.Location{}).(*component.Location)
 
 		// move the entity
 		location.X += movable.X

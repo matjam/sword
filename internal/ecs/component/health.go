@@ -1,25 +1,12 @@
 package component
 
-import (
-	"github.com/matjam/sword/internal/ecs"
-)
-
 // Health is the health of an entity.
 type Health struct {
-	id      ecs.ID
 	Max     int
 	Current int
 }
 
-func (*Health) New(id ecs.ID) ecs.Component {
-	return &Drawable{id: id}
-}
-
-func (h *Health) ID() ecs.ID {
-	return h.id
-}
-
-func (*Health) Name() string {
+func (*Health) ComponentName() string {
 	return "health"
 }
 
