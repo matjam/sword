@@ -31,6 +31,10 @@ func TestMove(t *testing.T) {
 	world.AddSystem(&system.Movement{})
 
 	// Move the player
+	// TODO: maybe a registry would be good so we could refer to the components by a
+	// constant value, then we could do something like:
+	// movable := ecs.GetComponent[component.Move](world, player, ComponentMove)
+	// though I'm not sure if that's any better than what we have now.
 	movable := ecs.GetComponent[*component.Move](world, player, &component.Move{})
 	movable.X = 1
 	movable.Y = 2
