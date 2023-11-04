@@ -35,7 +35,7 @@ func TestMove(t *testing.T) {
 	// constant value, then we could do something like:
 	// movable := ecs.GetComponent[component.Move](world, player, ComponentMove)
 	// though I'm not sure if that's any better than what we have now.
-	movable := ecs.GetComponent[*component.Move](world, player, &component.Move{})
+	movable := ecs.GetComponent[*component.Move](world, player)
 	movable.X = 1
 	movable.Y = 2
 
@@ -43,7 +43,7 @@ func TestMove(t *testing.T) {
 	world.Update(1)
 
 	// Get the player's location
-	location := world.GetComponent(player, &component.Location{}).(*component.Location)
+	location := ecs.GetComponent[*component.Location](world, player)
 	slog.Info(fmt.Sprintf("Player location: %d, %d", location.X, location.Y))
 
 	if location.X != 3 || location.Y != 4 {
@@ -71,7 +71,7 @@ func BenchmarkSystem(b *testing.B) {
 
 	// benchmark moving the player then running update
 	for n := 0; n < b.N; n++ {
-		movable := ecs.GetComponent[*component.Move](world, player, &component.Move{})
+		movable := ecs.GetComponent[*component.Move](world, player)
 		movable.X = 1
 		movable.Y = 2
 		world.Update(1)

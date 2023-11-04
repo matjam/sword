@@ -240,6 +240,7 @@ func (w *World) nextID() ID {
 	return id
 }
 
-func GetComponent[T Component](world *World, entityID EntityID, component Component) T {
+func GetComponent[T Component](world *World, entityID EntityID) T {
+	var component T
 	return world.GetComponent(entityID, component).(T)
 }
