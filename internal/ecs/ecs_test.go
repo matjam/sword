@@ -12,17 +12,11 @@ import (
 )
 
 func TestMove(t *testing.T) {
-	world := ecs.NewWorld()
-
-	// create a player entity
-	player := world.AddEntity(&entity.Player{},
-		&component.Location{X: 2, Y: 2},
+	world := ecs.NewWorld(
+		&component.Location{},
 		&component.Move{},
 		&component.Render{},
-		&component.Health{
-			Current: 100,
-			Max:     100,
-		},
+		&component.Health{},
 		&component.Inventory{},
 	)
 
@@ -30,54 +24,78 @@ func TestMove(t *testing.T) {
 	// TODO: probably need a way to specify the order of systems
 	world.AddSystem(&system.Movement{})
 
+	// create a player entity
+	player := world.AddEntity(&entity.Player{})
+	mob := world.AddEntity(&entity.Mob{})
+
 	// Move the player
-	// TODO: maybe a registry would be good so we could refer to the components by a
-	// constant value, then we could do something like:
-	// movable := ecs.GetComponent[component.Move](world, player, ComponentMove)
-	// though I'm not sure if that's any better than what we have now.
 	movable := ecs.GetComponent[*component.Move](world, player)
 	movable.X = 1
 	movable.Y = 2
 
+	// Move the mob
+	movable = ecs.GetComponent[*component.Move](world, mob)
+	movable.X = 3
+	movable.Y = 4
+
 	// Update the world
 	world.Update(1)
 
-	// Get the player's location
-	location := ecs.GetComponent[*component.Location](world, player)
-	slog.Info(fmt.Sprintf("Player location: %d, %d", location.X, location.Y))
+	ecs.Spew(world)
 
-	if location.X != 3 || location.Y != 4 {
+	// Get the player's location
+	playerLocation := ecs.GetComponent[*component.Location](world, player)
+	slog.Info(fmt.Sprintf("Player location: %d, %d", playerLocation.X, playerLocation.Y))
+
+	if playerLocation.X != 3 || playerLocation.Y != 4 {
 		t.Errorf("Player location should be 3, 4")
+	}
+
+	// Get the mob's location
+	mobLocation := ecs.GetComponent[*component.Location](world, mob)
+	slog.Info(fmt.Sprintf("Mob location: %d, %d", mobLocation.X, mobLocation.Y))
+
+	if mobLocation.X != 8 || mobLocation.Y != 9 {
+		t.Errorf("Mob location should be 8, 9")
 	}
 }
 
-func BenchmarkSystem(b *testing.B) {
+type TestEntityWithNoComponents struct{}
+
+func (*TestEntityWithNoComponents) EntityName() ecs.EntityName {
+	return "test"
+}
+
+func (*TestEntityWithNoComponents) New() (ecs.Entity, []ecs.Component) {
+	return &TestEntityWithNoComponents{}, []ecs.Component{}
+}
+
+func TestAddEntityWithNoComponents(t *testing.T) {
 	world := ecs.NewWorld()
+	testEntityID := world.AddEntity(&TestEntityWithNoComponents{})
 
-	// create a player entity
-	player := world.AddEntity(&entity.Player{},
-		&component.Location{X: 2, Y: 2},
-		&component.Move{},
-		&component.Render{},
-		&component.Health{
-			Current: 100,
-			Max:     100,
-		},
-		&component.Inventory{},
-	)
+	// Get the testEntity's components
+	components := world.GetComponentIDsForEntity(testEntityID)
 
-	// add a movement system
-	world.AddSystem(&system.Movement{})
-
-	// benchmark moving the player then running update
-	for n := 0; n < b.N; n++ {
-		movable := ecs.GetComponent[*component.Move](world, player)
-		movable.X = 1
-		movable.Y = 2
-		world.Update(1)
+	if len(components) != 0 {
+		t.Errorf("Player should have no components")
 	}
+}
 
-	// Get the player's location
-	location := world.GetComponent(player, &component.Location{}).(*component.Location)
-	slog.Info(fmt.Sprintf("Player location: %d, %d", location.X, location.Y))
+func TestAddDuplicateComponents(t *testing.T) {
+	world := ecs.NewWorld()
+	testEntityID := world.AddEntity(&TestEntityWithNoComponents{})
+
+	// Add a duplicate component
+	world.AddComponent(testEntityID, &component.Location{X: 1, Y: 1})
+
+	t.Run("Runtime error expected", func(t *testing.T) {
+		defer func() {
+			if recover() == nil {
+				t.Errorf("The code did not panic")
+			}
+		}()
+
+		world.AddComponent(testEntityID, &component.Location{X: 1, Y: 1})
+	})
 }

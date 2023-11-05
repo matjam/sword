@@ -3,6 +3,7 @@ package component
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/matjam/sword/internal/ecs"
 )
 
 type Render struct {
@@ -14,7 +15,7 @@ type Render struct {
 	Sprite *ebiten.Image
 }
 
-func (*Render) ComponentName() string {
+func (*Render) ComponentName() ecs.ComponentName {
 	return "render"
 }
 

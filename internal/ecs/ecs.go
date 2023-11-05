@@ -32,6 +32,8 @@ package ecs
 import (
 	"log/slog"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 // These IDs are globally unique identifiers for entities, components and
@@ -39,26 +41,29 @@ import (
 // registering them with the world, and when adding them to an entity.
 type ID uint32
 
-// EntityFactoryID is a unique identifier for an entity type in the ECS.
-type EntityFactoryID ID
+// EntityName is a unique identifier for an entity type in the ECS.
+type EntityName string
 
 // EntityID is a unique identifier for an instance of an entity in the ECS.
 type EntityID ID
 
-// ComponentFactoryID is a unique identifier for a component type in the ECS.
-type ComponentFactoryID ID
+type ComponentName string
 
 // ComponentID is a unique identifier for an instance of a component in the ECS.
 type ComponentID ID
 
 // SystemID is a unique identifier for an instance of a system in the ECS.
-type SystemID ID
+type SystemName string
 
 // Entity is a unique object in the ECS. It is made up of a unique ID, and a
 // set of components.
 type Entity interface {
+	// New returns a new instance of the entity, and a list of components to
+	// add to the entity.
+	New() (Entity, []Component)
+
 	// EntityName returns the name of the entity type.
-	EntityName() string
+	EntityName() EntityName
 }
 
 // Components are the data associated with an entity. Each component can store
@@ -66,13 +71,13 @@ type Entity interface {
 // processed by that system.
 type Component interface {
 	// ComponentName returns the name of the component.
-	ComponentName() string
+	ComponentName() ComponentName
 }
 
 // system operates on components associated with entities.
 type System interface {
 	// SystemName returns the name of the system.
-	SystemName() string
+	SystemName() SystemName
 
 	// Update is called every frame to update the system.
 	Update(world *World, deltaTime time.Duration)
@@ -83,18 +88,30 @@ type System interface {
 }
 
 // World is the main ECS object. It contains all entities and systems.
+//
+// We need to maintain several data structures in order to efficiently query
+// the world for entities that have a given set of components. We need to be
+// able to query the world for entities that have a given set of components,
+// as well as retrieve all components used by a given system. We also need to
+// be able to retrieve a component for a given entity.
 type World struct {
 	// Every entity, component and system has a unique ID. The nextUniqueID
 	// field stores the next ID to be used.
 	nextUniqueID ID
 
-	// entities holds a list of components for each entity. The value stored
-	// is a list of component IDs.
+	// map component names to component types
+	componentRegistry map[ComponentName]Component
+
+	// entities holds all of the entities in the world. Each entity is stored
+	// by its ID.
 	entities map[EntityID]Entity
 
+	// all entities of a given type
+	entitiesByName map[EntityName][]EntityID
+
 	// There can only be a single System of a given type, so we don't need a
-	// Factory for those.
-	systems map[SystemID]System
+	// registry for those.
+	systems map[SystemName]System
 
 	// components holds each instance of a component. Each component created
 	// for an entity is stored here, and can be retrieved by its ID.
@@ -102,62 +119,125 @@ type World struct {
 
 	// entityComponents is a map of Entity IDs to a map of component IDs keyed
 	// by component name.
-	entityComponents map[EntityID]map[string]ComponentID
+	entityComponents map[EntityID]map[ComponentName]ComponentID
 
-	// componentEntities is a map of Component names to an array of Entity IDs.
-	componentEntities map[string][]EntityID
+	// When running the main loop, a system will need to query the world for
+	// all components that it operates on. We need to be able to quickly
+	// retrieve all components of a given type, so we store them in a map
+	// keyed bythe name of the system.
+	systemComponents map[SystemName]map[ComponentName][]ComponentID
+
+	// componentEntities is a map of component names to a list of entity IDs
+	// that have that component.
+	componentEntities map[ComponentName][]EntityID
+
+	// componentGroups
 }
 
-func NewWorld() *World {
-	return &World{
-		nextUniqueID:      0,
+func NewWorld(components ...Component) *World {
+	w := &World{
+		nextUniqueID:      1,
+		componentRegistry: make(map[ComponentName]Component),
 		entities:          make(map[EntityID]Entity),
-		systems:           make(map[SystemID]System),
+		entitiesByName:    make(map[EntityName][]EntityID),
+		systems:           make(map[SystemName]System),
 		components:        make(map[ComponentID]Component),
-		entityComponents:  make(map[EntityID]map[string]ComponentID),
-		componentEntities: make(map[string][]EntityID),
+		entityComponents:  make(map[EntityID]map[ComponentName]ComponentID),
+		systemComponents:  make(map[SystemName]map[ComponentName][]ComponentID),
+		componentEntities: make(map[ComponentName][]EntityID),
 	}
+
+	for _, component := range components {
+		w.RegisterComponent(component)
+	}
+
+	return w
 }
 
+// AddSystem adds a system to the world.
 func (w *World) AddSystem(system System) {
-	id := SystemID(w.nextID())
+	w.systems[system.SystemName()] = system
+	w.systemComponents[system.SystemName()] = make(map[ComponentName][]ComponentID)
 
-	w.systems[id] = system
+	// Add the components that the system operates on to the systemComponents
+	// map. When entities are added to the world, we'll add their components
+	// to the systemComponents[SystemName][ComponentName] map.
+	for _, component := range system.Components() {
+		name := component.ComponentName()
+		w.systemComponents[system.SystemName()][name] = make([]ComponentID, 0)
+	}
 
-	slog.Info("Registered", "id", id, "system", system.SystemName(), "components", system.Components())
+	slog.Info("registered system", "system", system.SystemName(), "components", system.Components())
+}
+
+// RegisterComponent registers a component with the world.
+func (w *World) RegisterComponent(component Component) {
+	name := component.ComponentName()
+	w.componentRegistry[name] = component
+
+	slog.Info("registered component", "component", name)
 }
 
 // AddEntity adds an entity to the world. It returns the entity ID. Optionally, you can
 // pass a list of components to add to the entity.
-func (w *World) AddEntity(entity Entity, components ...Component) EntityID {
+func (w *World) AddEntity(entity Entity) EntityID {
 	id := EntityID(w.nextID())
 
-	w.entities[id] = entity
+	entity, components := entity.New()
 
-	for _, component := range components {
-		w.AddComponent(id, component)
+	if len(components) == 0 {
+		slog.Warn("adding entity with no components", "entity", entity.EntityName())
 	}
 
-	slog.Info("Added entity", "id", id, "components", components)
+	w.entities[id] = entity
+	componentNames := make([]ComponentName, 0)
+	for _, component := range components {
+		w.AddComponent(id, component)
+		componentNames = append(componentNames, component.ComponentName())
+	}
+
+	// Add the entity to the entitiesByName map.
+	if _, ok := w.entitiesByName[entity.EntityName()]; !ok {
+		w.entitiesByName[entity.EntityName()] = make([]EntityID, 0)
+	}
+	w.entitiesByName[entity.EntityName()] = append(w.entitiesByName[entity.EntityName()], id)
+
+	slog.Info("added entity", "id", id, "components", componentNames)
 	return id
 }
 
 // AddComponent adds a component to an entity.
 func (w *World) AddComponent(entityID EntityID, component Component) {
 	id := ComponentID(w.nextID())
-
 	w.components[id] = component
+	name := component.ComponentName()
 
+	// Add the component to the entity.
 	if _, ok := w.entityComponents[entityID]; !ok {
-		w.entityComponents[entityID] = make(map[string]ComponentID)
+		w.entityComponents[entityID] = make(map[ComponentName]ComponentID)
 	}
-	w.entityComponents[entityID][component.ComponentName()] = id
 
-	if _, ok := w.componentEntities[component.ComponentName()]; !ok {
-		w.componentEntities[component.ComponentName()] = make([]EntityID, 0)
+	// check that the entity doesn't already have the component
+	if _, ok := w.entityComponents[entityID][name]; ok {
+		slog.Error("Entity already has component",
+			"entity_id", entityID,
+			"component", component.ComponentName(),
+			"component_id", id)
+		panic("entity already has component")
 	}
-	w.componentEntities[component.ComponentName()] =
-		append(w.componentEntities[component.ComponentName()], entityID)
+
+	// Add the component to the entity.
+	w.entityComponents[entityID][name] = id
+
+	// Add the component to the systemComponents map.
+	for systemName, systemComponents := range w.systemComponents {
+		if _, ok := systemComponents[name]; ok {
+			w.systemComponents[systemName][name] = append(w.systemComponents[systemName][name], id)
+		}
+	}
+
+	// Add the entity to the componentEntities map.
+	w.componentEntities[name] = append(w.componentEntities[name], entityID)
 
 	slog.Info("Added component",
 		"entity_id", entityID,
@@ -179,9 +259,9 @@ func (w *World) HasComponent(entityID EntityID, component Component) bool {
 
 // HasComponents returns true if the given entity has all of the given
 // components.
-func (w *World) HasComponents(entityID EntityID, components []string) bool {
-	for _, name := range components {
-		if _, ok := w.entityComponents[entityID][name]; !ok {
+func (w *World) HasComponents(entityID EntityID, components []Component) bool {
+	for _, component := range components {
+		if !w.HasComponent(entityID, component) {
 			return false
 		}
 	}
@@ -202,6 +282,44 @@ func (w *World) GetComponent(entityID EntityID, component Component) Component {
 	return nil
 }
 
+// EntitiesForSystem returns a list of entities that have all of the components
+// that the given system operates on.
+func (w *World) EntitiesForSystem(system System) []EntityID {
+	entities := make([]EntityID, 0)
+	systemName := system.SystemName()
+	systemComponents := w.systemComponents[systemName]
+
+	// get the list of component names that the system operates on
+	componentNames := make([]ComponentName, 0)
+	for _, component := range system.Components() {
+		componentNames = append(componentNames, component.ComponentName())
+	}
+
+	// get the list of entities that have all of the components that the system
+	// operates on
+	for _, entityID := range w.componentEntities[componentNames[0]] {
+		hasComponents := true
+		for _, componentName := range componentNames {
+			if _, ok := systemComponents[componentName]; !ok {
+				hasComponents = false
+				break
+			}
+		}
+
+		if hasComponents {
+			entities = append(entities, entityID)
+		}
+	}
+
+	return entities
+}
+
+func (w *World) ComponentsForSystem(system System) map[ComponentName][]ComponentID {
+	systemName := system.SystemName()
+	systemComponents := w.systemComponents[systemName]
+	return systemComponents
+}
+
 // Update updates all systems in the world.
 func (w *World) Update(deltaTime time.Duration) {
 	for _, system := range w.systems {
@@ -209,38 +327,82 @@ func (w *World) Update(deltaTime time.Duration) {
 	}
 }
 
-// EntitiesForSystem returns a list of entities that have all of the components
-// that the given system operates on.
-func (w *World) EntitiesForSystem(system System) []EntityID {
-	entities := make([]EntityID, 0)
-
-	// Get the list of component names that the system operates on.
-	componentNames := make([]string, 0)
-	for _, component := range system.Components() {
-		componentNames = append(componentNames, component.ComponentName())
-	}
-
-	// Get the list of entities that have all of the components that the system
-	// operates on.
-	for _, entityID := range w.componentEntities[componentNames[0]] {
-		// If the entity does not have any of the components, we skip it.
-		if !w.HasComponents(entityID, componentNames) {
-			continue
-		}
-
-		entities = append(entities, entityID)
-	}
-
-	return entities
-}
-
+// nextID returns the next unique ID to be used.
 func (w *World) nextID() ID {
 	id := w.nextUniqueID
 	w.nextUniqueID++
 	return id
 }
 
+// GetComponent returns the component of the given type for the given entity.
 func GetComponent[T Component](world *World, entityID EntityID) T {
 	var component T
 	return world.GetComponent(entityID, component).(T)
+}
+
+func GetComponentID[T Component](world *World, componentID ComponentID) T {
+	return world.components[componentID].(T)
+}
+
+func (world *World) GetComponentIDsForEntity(entityID EntityID) []ComponentID {
+	components := make([]ComponentID, 0)
+	for _, componentID := range world.entityComponents[entityID] {
+		components = append(components, componentID)
+	}
+	return components
+}
+
+func Spew(w *World) {
+	slog.Info("Spew")
+	spew.Dump(w)
+	slog.Info("Spew end")
+}
+
+// IterateComponents iterates of the components for a system, and calls the
+// given function for each set of components. The function should take a map
+// of component names to a component ID, one for each component that the system
+// operates on.
+//
+// For example, if a system operates on a Move component and a Location
+// component, the function will be called with a map of two components, one for
+// Move and one for Location, with the ID of each component.
+func (w *World) IterateComponents(system System, f func(map[ComponentName]ComponentID)) {
+	systemName := system.SystemName()
+	systemComponents := w.systemComponents[systemName]
+	arg := make(map[ComponentName]ComponentID)
+
+	if len(systemComponents) == 0 {
+		panic("no components for system")
+	}
+
+	entityCount := len(systemComponents[system.Components()[0].ComponentName()])
+	for i := 0; i < entityCount; i++ {
+		for componentName, componentIDs := range systemComponents {
+			arg[componentName] = componentIDs[i]
+		}
+
+		f(arg)
+
+		arg = make(map[ComponentName]ComponentID)
+	}
+}
+
+func (w *World) componentNamesForSystem(system System) []ComponentName {
+	// get the list of component names that the system operates on
+	componentNames := make([]ComponentName, 0)
+	for _, component := range system.Components() {
+		componentNames = append(componentNames, component.ComponentName())
+	}
+
+	return componentNames
+}
+
+func (w *World) GetEntity(entityID EntityID) Entity {
+	return w.entities[entityID]
+}
+
+// GetEntity is a helper function that returns the entity of the given type
+// for the given entity ID.
+func GetEntity[T Entity](world *World, entityID EntityID) T {
+	return world.GetEntity(entityID).(T)
 }

@@ -1,5 +1,7 @@
 package component
 
+import "github.com/matjam/sword/internal/ecs"
+
 type Item struct {
 	Name   string
 	Weight int
@@ -12,6 +14,6 @@ type Inventory struct {
 	Items []Item
 }
 
-func (*Inventory) ComponentName() string {
+func (*Inventory) ComponentName() ecs.ComponentName {
 	return "inventory"
 }

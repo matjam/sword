@@ -1,11 +1,17 @@
 package main
 
 import (
-	"github.com/gookit/slog"
+	"log"
+	"log/slog"
+	"os"
+	"time"
+
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/lmittmann/tint"
 	"github.com/matjam/sword/internal/assets"
 	"github.com/matjam/sword/internal/tilemap"
 	"github.com/matjam/sword/internal/tilemap/text"
+	"github.com/mattn/go-colorable"
 
 	_ "image/png"
 )
@@ -19,7 +25,7 @@ func (g *Game) Update() error {
 	return nil
 }
 
-func (g *Game) Draw(screen *ebiten.Image) { 
+func (g *Game) Draw(screen *ebiten.Image) {
 	g.tmRenderer.Draw(screen, 20, 40,
 		tilemap.Rectangle{
 			X:      0,
@@ -33,11 +39,19 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 	return 1280, 768
 }
 
+func ConfigureLogger() {
+	w := os.Stderr
+	slog.SetDefault(slog.New(
+		tint.NewHandler(colorable.NewColorable(w), &tint.Options{
+			Level:      slog.LevelDebug,
+			TimeFormat: time.Kitchen,
+		}),
+	))
+
+}
+
 func main() {
-	slog.Configure(func(logger *slog.SugaredLogger) {
-		f := logger.Formatter.(*slog.TextFormatter)
-		f.EnableColor = true
-	})
+	ConfigureLogger()
 
 	game := &Game{}
 
@@ -71,6 +85,6 @@ func main() {
 	ebiten.SetWindowSize(1280, 768)
 	ebiten.SetWindowTitle("Hello, World!")
 	if err := ebiten.RunGame(game); err != nil {
-		slog.Fatal(err)
+		log.Panic("failed to run game: ", err)
 	}
 }
