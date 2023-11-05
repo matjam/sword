@@ -20,31 +20,6 @@ func (s *Movement) Components() []ecs.Component {
 	}
 }
 
-// func (s *Movement) Update(world *ecs.World, deltaTime time.Duration) {
-// 	// get all entities with a movable and location component
-// 	components := world.ComponentsForSystem(s)
-
-// 	if len(components["move"]) != len(components["location"]) {
-// 		panic("mismatched components")
-// 	}
-
-// 	moveIDs := components["move"]
-// 	locationIDs := components["location"]
-
-// 	for i := 0; i < len(moveIDs); i++ {
-// 		movable := ecs.GetComponentID[*component.Move](world, moveIDs[i])
-// 		location := ecs.GetComponentID[*component.Location](world, locationIDs[i])
-
-// 		// move the entity
-// 		location.X += movable.X
-// 		location.Y += movable.Y
-
-// 		// reset the movable component
-// 		movable.X = 0
-// 		movable.Y = 0
-// 	}
-// }
-
 func (s *Movement) Update(world *ecs.World, deltaTime time.Duration) {
 	world.IterateComponents(s, func(components map[ecs.ComponentName]ecs.ComponentID) {
 		location := ecs.GetComponentID[*component.Location](world, components["location"])
