@@ -7,23 +7,36 @@ import (
 	"github.com/matjam/sword/internal/ecs/component"
 )
 
-type Movement struct{}
+// Ensure that we're implementing the ecs.System interface.
+var _ = ecs.System(&Movement{})
 
-func (*Movement) SystemName() ecs.SystemName {
+type Movement struct {
+	world *ecs.World
+}
+
+// Init initializes the system.
+func (sys *Movement) Init(world *ecs.World) {
+	sys.world = world
+}
+
+// SystemName returns the name of the system.
+func (sys *Movement) SystemName() ecs.SystemName {
 	return "movement"
 }
 
-func (s *Movement) Components() []ecs.Component {
+// Components returns the components that the system is interested in.
+func (sys *Movement) Components() []ecs.Component {
 	return []ecs.Component{
 		&component.Move{},
 		&component.Location{},
 	}
 }
 
-func (s *Movement) Update(world *ecs.World, deltaTime time.Duration) {
-	world.IterateComponents(s, func(components map[ecs.ComponentName]ecs.ComponentID) {
-		location := ecs.GetComponentID[*component.Location](world, components["location"])
-		movable := ecs.GetComponentID[*component.Move](world, components["move"])
+// Update updates the system.
+func (sys *Movement) Update(deltaTime time.Duration) {
+	sys.world.IterateComponents(sys, func(components map[ecs.ComponentName]ecs.ComponentID) {
+		location := ecs.GetComponentID[*component.Location](sys.world, components["location"])
+		movable := ecs.GetComponentID[*component.Move](sys.world, components["move"])
 
 		// move the entity
 		location.X += movable.X

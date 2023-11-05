@@ -96,16 +96,13 @@ func TestAddDuplicateComponents(t *testing.T) {
 
 	// Add a duplicate component
 	world.AddComponent(testEntityID, &component.Location{X: 1, Y: 1})
+	world.AddComponent(testEntityID, &component.Location{X: 1, Y: 1})
+	components := world.GetComponentIDsForEntity(testEntityID)
 
-	t.Run("Runtime error expected", func(t *testing.T) {
-		defer func() {
-			if recover() == nil {
-				t.Errorf("The code did not panic")
-			}
-		}()
+	if len(components) != 1 {
+		t.Errorf("Player should have 1 component")
+	}
 
-		world.AddComponent(testEntityID, &component.Location{X: 1, Y: 1})
-	})
 }
 
 func TestWorld_HasComponent(t *testing.T) {
@@ -242,14 +239,22 @@ func TestWorld_GetComponentIDsForEntity(t *testing.T) {
 	}
 }
 
-type TestSystemWithNoComponents struct{}
+var _ ecs.System = &TestSystemWithNoComponents{}
+
+type TestSystemWithNoComponents struct {
+	world *ecs.World
+}
+
+func (sys *TestSystemWithNoComponents) Init(world *ecs.World) {
+	sys.world = world
+}
 
 func (*TestSystemWithNoComponents) SystemName() ecs.SystemName {
 	return "test"
 }
 
-func (*TestSystemWithNoComponents) Update(world *ecs.World, deltaTime time.Duration) {
-	world.IterateComponents(&TestSystemWithNoComponents{}, func(components map[ecs.ComponentName]ecs.ComponentID) {
+func (sys *TestSystemWithNoComponents) Update(deltaTime time.Duration) {
+	sys.world.IterateComponents(sys, func(components map[ecs.ComponentName]ecs.ComponentID) {
 		// do nothing
 	})
 }
@@ -259,20 +264,9 @@ func (*TestSystemWithNoComponents) Components() []ecs.Component {
 }
 
 func TestWorld_AddSystemWithNoComponents(t *testing.T) {
-	// Test that calling Update on a system that has no components panics
-
 	world := ecs.NewWorld()
 	world.AddSystem(&TestSystemWithNoComponents{})
-
-	t.Run("Runtime error expected", func(t *testing.T) {
-		defer func() {
-			if recover() == nil {
-				t.Errorf("The code did not panic")
-			}
-		}()
-
-		world.Update(1)
-	})
+	world.Update(1)
 }
 
 func TestWorld_GetEntity(t *testing.T) {

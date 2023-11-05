@@ -50,7 +50,7 @@ type ComponentName string
 // ComponentID is a unique identifier for an instance of a component in the ECS.
 type ComponentID ID
 
-// SystemID is a unique identifier for an instance of a system in the ECS.
+// SystemName is a unique identifier for an instance of a system in the ECS.
 type SystemName string
 
 // Entity is a unique object in the ECS. It is made up of a unique ID, and a
@@ -74,15 +74,15 @@ type Component interface {
 
 // system operates on components associated with entities.
 type System interface {
+	// Init is called when the system is registered with the world.
+	Init(world *World)
 	// SystemName returns the name of the system.
 	SystemName() SystemName
-
-	// Update is called every frame to update the system.
-	Update(world *World, deltaTime time.Duration)
-
 	// Components returns a list of component types that this
 	// system operates on.
 	Components() []Component
+	// Update is called every frame to update the system.
+	Update(deltaTime time.Duration)
 }
 
 // World is the main ECS object. It contains all entities and systems.
@@ -146,6 +146,8 @@ func NewWorld() *World {
 
 // AddSystem adds a system to the world.
 func (w *World) AddSystem(system System) {
+	system.Init(w)
+
 	w.systems[system.SystemName()] = system
 	w.systemComponents[system.SystemName()] = make(map[ComponentName][]ComponentID)
 
@@ -205,7 +207,6 @@ func (w *World) AddComponent(entityID EntityID, component Component) {
 			"entity_id", entityID,
 			"component", component.ComponentName(),
 			"component_id", id)
-		panic("entity already has component")
 	}
 
 	// Add the component to the entity.
@@ -282,7 +283,7 @@ func (w *World) ComponentsForSystem(system System) map[ComponentName][]Component
 // Update updates all systems in the world.
 func (w *World) Update(deltaTime time.Duration) {
 	for _, system := range w.systems {
-		system.Update(w, deltaTime)
+		system.Update(deltaTime)
 	}
 }
 
@@ -335,7 +336,11 @@ func (w *World) IterateComponents(system System, f func(map[ComponentName]Compon
 	arg := make(map[ComponentName]ComponentID)
 
 	if len(systemComponents) == 0 {
-		panic("no components for system")
+		// This is likely not an actual problem, but it's worth logging a warning
+		// because you probably don't want to iterate over an empty list of
+		// components. Nothing will happen.
+		slog.Warn("IterateComponents called with a system that does not use components, stop that")
+		return
 	}
 
 	entityCount := len(systemComponents[system.Components()[0].ComponentName()])

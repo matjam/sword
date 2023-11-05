@@ -3,12 +3,11 @@ package assets
 import (
 	"encoding/json"
 	"image"
-	"log"
+	"log/slog"
 	"os"
 	"path"
 	"strings"
 
-	"github.com/gookit/slog"
 	"github.com/hajimehoshi/ebiten/v2"
 	woff "github.com/tdewolff/canvas/font"
 	"golang.org/x/image/font"
@@ -39,7 +38,8 @@ type assetConfig struct {
 
 func StartAssetManager() {
 	if globalAssetManager != nil {
-		log.Fatal("asset manager already started")
+		slog.Error("asset manager already started")
+		return
 	}
 
 	m := AssetManager{
@@ -52,12 +52,14 @@ func StartAssetManager() {
 	// load config
 	data, err := os.ReadFile("assets.json")
 	if err != nil {
-		log.Fatal(err)
+		slog.Info("error reading assets.json", err)
+		panic(err)
 	}
 	config := assetConfig{}
 	err = json.Unmarshal(data, &config)
 	if err != nil {
-		log.Fatal(err)
+		slog.Info("error reading assets.json", err)
+		panic(err)
 	}
 
 	// load images
@@ -76,18 +78,20 @@ func StartAssetManager() {
 func (am *AssetManager) loadImage(path string, name string) {
 	reader, err := os.Open(path)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("error opening image", err)
+		panic(err)
 	}
 	defer reader.Close()
 
 	m, _, err := image.Decode(reader)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("error decoding image", err)
+		panic(err)
 	}
 
 	am.images[name] = &m
 
-	slog.Infof("image: loaded %v:%v", name, path)
+	slog.Info("image loaded", "name", name, "path", path)
 }
 
 func (am *AssetManager) loadFont(fontPath string, name string, size float64) {
@@ -98,29 +102,37 @@ func (am *AssetManager) loadFont(fontPath string, name string, size float64) {
 
 	data, err = os.ReadFile(fontPath)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("error reading font file", err)
+		panic(err)
 	}
 
 	ext := path.Ext(fontPath)
 	switch strings.ToLower(ext) {
 	case ".ttf":
 		fnt, err = opentype.Parse(data)
+		if err != nil {
+			slog.Error("error parsing ttf font", err)
+			panic(err)
+		}
 	case ".woff":
 		fntData, err = woff.ParseWOFF(data)
 		if err != nil {
-			log.Fatal(err)
+			slog.Error("error parsing woff font", err)
+			panic(err)
 		}
 		fnt, err = sfnt.Parse(fntData)
 	case ".woff2":
 		fntData, err = woff.ParseWOFF2(data)
 		if err != nil {
-			log.Fatal(err)
+			slog.Error("error parsing woff2 font", err)
+			panic(err)
 		}
 		fnt, err = sfnt.Parse(fntData)
 	}
 
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("error parsing font", err)
+		panic(err)
 	}
 
 	f, err := opentype.NewFace(fnt, &opentype.FaceOptions{
@@ -129,13 +141,14 @@ func (am *AssetManager) loadFont(fontPath string, name string, size float64) {
 		Hinting: font.HintingVertical,
 	})
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("error creating font face", err)
+		panic(err)
 	}
 
 	am.fonts[name] = f
 	am.fontSizes[name] = int(size)
 
-	slog.Infof("font: loaded %v:%v", name, fontPath)
+	slog.Info("font loaded", "name", name, "fontPath", fontPath)
 }
 
 func (am *AssetManager) GetImage(name string) *image.Image {

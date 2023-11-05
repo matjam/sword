@@ -26,12 +26,12 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	g.tmRenderer.Draw(screen, 20, 40,
+	g.tmRenderer.Draw(screen, 28, 26,
 		tilemap.Rectangle{
 			X:      0,
 			Y:      0,
-			Width:  40,
-			Height: 20,
+			Width:  77,
+			Height: 49,
 		})
 }
 
@@ -59,7 +59,7 @@ func main() {
 	assets.StartAssetManager()
 
 	slog.Info("creating tilemap ...")
-	game.tm = tilemap.NewGrid(200, 120)
+	game.tm = tilemap.NewGrid(600, 400)
 
 	// lets clear out a room
 
