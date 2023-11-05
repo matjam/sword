@@ -11,8 +11,6 @@ work is the first step.
 
 ## TODO
 
--   Need a way to order the execution of systems. Render system should go last,
-    damage handling system probably needs to go just before that, etc.
 -   Some kind of event system, so when something happens, other systems can
     react to things. Currently I'm just putting arrays on components to record
     changes being made from systems, maybe that will work. I dunno.
