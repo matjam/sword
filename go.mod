@@ -5,7 +5,6 @@ go 1.21
 toolchain go1.21.3
 
 require (
-	github.com/gookit/slog v0.5.4
 	github.com/hajimehoshi/ebiten/v2 v2.6.2
 	github.com/lmittmann/tint v1.0.3
 	github.com/mattn/go-colorable v0.1.13
@@ -17,13 +16,8 @@ require (
 	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/ebitengine/purego v0.5.0 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
-	github.com/gookit/color v1.5.4 // indirect
-	github.com/gookit/goutil v0.6.14 // indirect
-	github.com/gookit/gsr v0.1.0 // indirect
 	github.com/jezek/xgb v1.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp/shiny v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/mobile v0.0.0-20231006135142-2b44d11868fe // indirect
 	golang.org/x/sync v0.5.0 // indirect

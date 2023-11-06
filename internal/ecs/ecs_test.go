@@ -9,49 +9,41 @@ import (
 	"github.com/matjam/sword/internal/ecs"
 	"github.com/matjam/sword/internal/ecs/component"
 	"github.com/matjam/sword/internal/ecs/entity"
-	"github.com/matjam/sword/internal/ecs/system"
 )
 
-type TestEntityWithNoComponents struct{}
-
-func (*TestEntityWithNoComponents) EntityName() ecs.EntityName {
-	return "test"
-}
-
-func (*TestEntityWithNoComponents) New() (ecs.Entity, []ecs.Component) {
-	return &TestEntityWithNoComponents{}, []ecs.Component{}
-}
-
-type TestEntityWithComponents struct{}
-
-func (*TestEntityWithComponents) EntityName() ecs.EntityName {
-	return "test"
-}
-
-func (*TestEntityWithComponents) New() (ecs.Entity, []ecs.Component) {
-	return &TestEntityWithComponents{}, []ecs.Component{
-		&component.Location{X: 1, Y: 1},
-		&component.Move{X: 1, Y: 1},
-		&component.Render{},
-		&component.Health{Current: 100, Max: 100},
-	}
-}
+// currently these tests rely on external packages. We will implement
+// mocks for these packages in the future.
 
 func TestMove(t *testing.T) {
 	world := ecs.NewWorld()
 
+	if world.HasSystem(&TestSystemMovement{}) {
+		t.Errorf("The system should not exist")
+	}
+
 	// add a movement system
-	// TODO: probably need a way to specify the order of systems
-	world.AddSystem(&system.Movement{})
+	world.AddSystem(&TestSystemMovement{})
+
+	if !world.HasSystem(&TestSystemMovement{}) {
+		t.Errorf("The system should exist")
+	}
 
 	// create a player entity
 	player := world.AddEntity(&entity.Player{})
 	mob := world.AddEntity(&entity.Mob{})
 
+	location := ecs.GetComponent[*component.Location](world, player)
+	location.X = 2
+	location.Y = 2
+
 	// Move the player
 	movable := ecs.GetComponent[*component.Move](world, player)
 	movable.X = 1
 	movable.Y = 2
+
+	location = ecs.GetComponent[*component.Location](world, mob)
+	location.X = 5
+	location.Y = 5
 
 	// Move the mob
 	movable = ecs.GetComponent[*component.Move](world, mob)
@@ -183,7 +175,7 @@ func TestWorld_EntitiesForSystem(t *testing.T) {
 	testEntityID := world.AddEntity(&TestEntityWithComponents{})
 
 	// Test that the component exists
-	entities := world.EntitiesForSystem(&system.Movement{})
+	entities := world.EntitiesForSystem(&TestSystemMovement{})
 
 	if len(entities) != 1 {
 		t.Fatal("There should be 1 entity")
@@ -198,11 +190,11 @@ func TestWorld_ComponentsForSystem(t *testing.T) {
 	// Test that the ComponentsForSystem function works
 
 	world := ecs.NewWorld()
-	world.AddSystem(&system.Movement{})
+	world.AddSystem(&TestSystemMovement{})
 	world.AddEntity(&TestEntityWithComponents{})
 
 	// Test that the component exists
-	components := world.ComponentsForSystem(&system.Movement{})
+	components := world.ComponentsForSystem(&TestSystemMovement{})
 
 	// Should be two components returned: Location and Move
 	if len(components) != 2 {
@@ -239,30 +231,6 @@ func TestWorld_GetComponentIDsForEntity(t *testing.T) {
 	}
 }
 
-var _ ecs.System = &TestSystemWithNoComponents{}
-
-type TestSystemWithNoComponents struct {
-	world *ecs.World
-}
-
-func (sys *TestSystemWithNoComponents) Init(world *ecs.World) {
-	sys.world = world
-}
-
-func (*TestSystemWithNoComponents) SystemName() ecs.SystemName {
-	return "test"
-}
-
-func (sys *TestSystemWithNoComponents) Update(deltaTime time.Duration) {
-	sys.world.IterateComponents(sys, func(components map[ecs.ComponentName]ecs.ComponentID) {
-		// do nothing
-	})
-}
-
-func (*TestSystemWithNoComponents) Components() []ecs.Component {
-	return []ecs.Component{}
-}
-
 func TestWorld_AddSystemWithNoComponents(t *testing.T) {
 	world := ecs.NewWorld()
 	world.AddSystem(&TestSystemWithNoComponents{})
@@ -295,4 +263,30 @@ func TestGetEntity(t *testing.T) {
 	if entity == nil {
 		t.Fatal("The entity should exist")
 	}
+}
+
+func TestAddRenderSystem(t *testing.T) {
+	world := ecs.NewWorld()
+	world.AddSystem(&TestRenderSystem{})
+
+	// Test that the system exists
+	if !world.HasSystem(&TestRenderSystem{}) {
+		t.Fatal("The system should exist")
+	}
+}
+
+// Update updates the system.
+func (sys *TestSystemMovement) Update(deltaTime time.Duration) {
+	sys.world.IterateComponents(sys, func(components map[ecs.ComponentName]ecs.ComponentID) {
+		location := ecs.GetComponentID[*component.Location](sys.world, components["location"])
+		movable := ecs.GetComponentID[*component.Move](sys.world, components["move"])
+
+		// move the entity
+		location.X += movable.X
+		location.Y += movable.Y
+
+		// reset the movable component
+		movable.X = 0
+		movable.Y = 0
+	})
 }

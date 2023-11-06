@@ -32,6 +32,8 @@ package ecs
 import (
 	"log/slog"
 	"time"
+
+	"github.com/hajimehoshi/ebiten/v2"
 )
 
 // These IDs are globally unique identifiers for entities, components and
@@ -85,6 +87,11 @@ type System interface {
 	Update(deltaTime time.Duration)
 }
 
+type RenderSystem interface {
+	System
+	Draw(screen *ebiten.Image)
+}
+
 // World is the main ECS object. It contains all entities and systems.
 //
 // We need to maintain several data structures in order to efficiently query
@@ -105,8 +112,10 @@ type World struct {
 	entitiesByName map[EntityName][]EntityID
 
 	// There can only be a single System of a given type, so we don't need a
-	// registry for those.
-	systems map[SystemName]System
+	// registry for those. We register them into an array so that we can easily
+	// iterate over them.
+	systems       []System
+	renderSystems []RenderSystem
 
 	// components holds each instance of a component. Each component created
 	// for an entity is stored here, and can be retrieved by its ID.
@@ -134,7 +143,8 @@ func NewWorld() *World {
 		nextUniqueID:      1,
 		entities:          make(map[EntityID]Entity),
 		entitiesByName:    make(map[EntityName][]EntityID),
-		systems:           make(map[SystemName]System),
+		systems:           make([]System, 0),
+		renderSystems:     make([]RenderSystem, 0),
 		components:        make(map[ComponentID]Component),
 		entityComponents:  make(map[EntityID]map[ComponentName]ComponentID),
 		systemComponents:  make(map[SystemName]map[ComponentName][]ComponentID),
@@ -148,7 +158,15 @@ func NewWorld() *World {
 func (w *World) AddSystem(system System) {
 	system.Init(w)
 
-	w.systems[system.SystemName()] = system
+	// check if this is a RenderSystem
+	if renderSystem, ok := system.(RenderSystem); ok {
+		w.renderSystems = append(w.renderSystems, renderSystem)
+		slog.Info("registered RenderSystem", "system", system.SystemName(), "components", system.Components())
+	} else {
+		w.systems = append(w.systems, system)
+		slog.Info("registered System", "system", system.SystemName(), "components", system.Components())
+	}
+
 	w.systemComponents[system.SystemName()] = make(map[ComponentName][]ComponentID)
 
 	// Add the components that the system operates on to the systemComponents
@@ -159,7 +177,6 @@ func (w *World) AddSystem(system System) {
 		w.systemComponents[system.SystemName()][name] = make([]ComponentID, 0)
 	}
 
-	slog.Info("registered system", "system", system.SystemName(), "components", system.Components())
 }
 
 // AddEntity adds an entity to the world. It returns the entity ID. Optionally, you can
@@ -285,6 +302,17 @@ func (w *World) Update(deltaTime time.Duration) {
 	for _, system := range w.systems {
 		system.Update(deltaTime)
 	}
+
+	for _, renderSystem := range w.renderSystems {
+		renderSystem.Update(deltaTime)
+	}
+}
+
+// Draw draws all render systems in the world.
+func (w *World) Draw(screen *ebiten.Image) {
+	for _, renderSystem := range w.renderSystems {
+		renderSystem.Draw(screen)
+	}
 }
 
 // nextID returns the next unique ID to be used.
@@ -363,4 +391,20 @@ func (w *World) GetEntity(entityID EntityID) Entity {
 // for the given entity ID.
 func GetEntity[T Entity](world *World, entityID EntityID) T {
 	return world.GetEntity(entityID).(T)
+}
+
+func (w *World) HasSystem(system System) bool {
+	for _, s := range w.systems {
+		if s.SystemName() == system.SystemName() {
+			return true
+		}
+	}
+
+	for _, s := range w.renderSystems {
+		if s.SystemName() == system.SystemName() {
+			return true
+		}
+	}
+
+	return false
 }

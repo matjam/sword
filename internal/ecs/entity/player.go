@@ -1,6 +1,8 @@
 package entity
 
 import (
+	"image/color"
+
 	"github.com/matjam/sword/internal/ecs"
 	"github.com/matjam/sword/internal/ecs/component"
 )
@@ -15,9 +17,12 @@ func (*Player) EntityName() ecs.EntityName {
 // New returns the player entity and its components.
 func (*Player) New() (ecs.Entity, []ecs.Component) {
 	return &Player{}, []ecs.Component{
-		&component.Location{X: 2, Y: 2},
+		&component.Location{},
 		&component.Move{},
-		&component.Render{},
+		&component.Render{
+			Glyph: '☺',
+			Color: color.RGBA{R: 64, G: 255, B: 64, A: 255},
+		},
 		&component.Health{
 			Current: 100,
 			Max:     100,
