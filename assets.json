@@ -1,6 +1,7 @@
 {
     "images": {
-        "full": "assets/Full.png"
+        "full": "assets/Full.png",
+        "boxy": "assets/16x16-sb-ascii.png"
     },
     "fonts": {
         "mono": {

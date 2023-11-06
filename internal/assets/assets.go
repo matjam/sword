@@ -3,12 +3,14 @@ package assets
 import (
 	"encoding/json"
 	"image"
+	"image/color"
 	"log/slog"
 	"os"
 	"path"
 	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/text"
 	woff "github.com/tdewolff/canvas/font"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
@@ -20,7 +22,7 @@ const dpi = 72
 var globalAssetManager *AssetManager
 
 type AssetManager struct {
-	images    map[string]*image.Image
+	images    map[string]image.Image
 	tiles     map[string][]*ebiten.Image
 	fonts     map[string]font.Face
 	fontSizes map[string]int
@@ -43,7 +45,7 @@ func StartAssetManager() {
 	}
 
 	m := AssetManager{
-		images:    make(map[string]*image.Image),
+		images:    make(map[string]image.Image),
 		tiles:     make(map[string][]*ebiten.Image),
 		fonts:     make(map[string]font.Face),
 		fontSizes: make(map[string]int),
@@ -70,6 +72,7 @@ func StartAssetManager() {
 	// load fonts
 	for name, fontConfig := range config.Fonts {
 		m.loadFont(fontConfig.Path, name, fontConfig.Size)
+		m.images[name] = m.CreateTilesheet(name, int(fontConfig.Size))
 	}
 
 	globalAssetManager = &m
@@ -89,7 +92,7 @@ func (am *AssetManager) loadImage(path string, name string) {
 		panic(err)
 	}
 
-	am.images[name] = &m
+	am.images[name] = m
 
 	slog.Info("image loaded", "name", name, "path", path)
 }
@@ -151,7 +154,39 @@ func (am *AssetManager) loadFont(fontPath string, name string, size float64) {
 	slog.Info("font loaded", "name", name, "fontPath", fontPath)
 }
 
-func (am *AssetManager) GetImage(name string) *image.Image {
+// CreateTilesheet creates a 16x16 tilesheet from the given font, with
+// each character being pixelSize x pixelSize.
+func (am *AssetManager) CreateTilesheet(fontName string, pixelSize int) image.Image {
+	face := am.fonts[fontName]
+	size := am.fontSizes[fontName]
+
+	// create the tilesheet
+	tilesheet := ebiten.NewImage(16*pixelSize, 16*pixelSize)
+
+	offset := 0
+	// draw each character to the tilesheet
+	for i := 32; i < 128; i++ {
+		x := (offset % 16) * pixelSize
+		y := (offset / 16) * pixelSize
+
+		char := string([]rune{rune(i)})
+		text.Draw(tilesheet, char, face, x, y+size, color.White)
+		offset++
+	}
+
+	for i := 129792; i < 129792+128; i++ {
+		x := (offset % 16) * pixelSize
+		y := (offset / 16) * pixelSize
+
+		char := string([]rune{rune(i)})
+		text.Draw(tilesheet, char, face, x, y+size, color.White)
+		offset++
+	}
+
+	return tilesheet
+}
+
+func (am *AssetManager) GetImage(name string) image.Image {
 	return am.images[name]
 }
 
@@ -171,6 +206,6 @@ func GetFontSize(name string) int {
 	return globalAssetManager.GetFontSize(name)
 }
 
-func GetImage(name string) *image.Image {
+func GetImage(name string) image.Image {
 	return globalAssetManager.GetImage(name)
 }

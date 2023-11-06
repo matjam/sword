@@ -34,15 +34,18 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	g.tmRenderer.Draw(screen, 28, 26,
-		tilemap.Rectangle{
-			X:      0,
-			Y:      0,
-			Width:  77,
-			Height: 49,
-		})
+	// g.tmRenderer.Draw(screen, 28, 26,
+	// 	tilemap.Rectangle{
+	// 		X:      0,
+	// 		Y:      0,
+	// 		Width:  77,
+	// 		Height: 49,
+	// 	})
 
-	g.world.Draw(screen)
+	// g.world.Draw(screen)
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(2, 2)
+	screen.DrawImage(ebiten.NewImageFromImage(assets.GetImage("square")), op)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
