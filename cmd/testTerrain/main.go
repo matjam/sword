@@ -30,11 +30,8 @@ func main() {
 	ConfigureLogger()
 
 	game := &Game{
-		mg: mapgen.NewMapGenerator(1920/16-1, 1080/16),
+		mg: mapgen.NewMapGenerator(1920/16-1, 1080/16, time.Now().UnixNano(), 250),
 	}
-
-	// We generate the map.
-	game.mg.Generate(time.Now().UnixNano())
 
 	ebiten.SetWindowSize(1920, 1080)
 	ebiten.SetWindowTitle("display the map!")
@@ -44,6 +41,8 @@ func main() {
 }
 
 func (g *Game) Update() error {
+	g.mg.Update()
+
 	return nil
 }
 

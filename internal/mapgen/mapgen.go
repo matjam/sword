@@ -31,7 +31,7 @@ type Room struct {
 	Width  int
 	Height int
 
-	Region int
+	RegionID int
 }
 
 type Direction int
@@ -43,12 +43,24 @@ const (
 	West
 )
 
+type Region struct {
+	id  int
+	clr color.Color
+}
+
 type MapGenerator struct {
 	Width  int
 	Height int
 
+	doneRooms      bool
+	doneMazes      bool
+	doneConnectors bool
+
+	maxRoomAttempts int
+	curRoomAttempts int
+
 	terrainGrid   *terrain.Terrain
-	regionGrid    *grid.Grid[int]
+	regionGrid    *grid.Grid[Region]
 	connectorGrid *grid.Grid[bool]
 
 	roomList            []*Room
@@ -58,89 +70,123 @@ type MapGenerator struct {
 	x int
 	y int
 
+	// rows that have not yet been fully populated
+	incompleteRows []int
+
+	// when processing a row, we need to keep track of the
+	// columns that have not yet been fully populated for that row
+	incompleteCols []int
+
+	// we use this to track all of the locations that we have visited
+	// while running the maze generator. This is used by the maze hunt
+	// algorithm to find a previously visited location that has an
+	// unvisited neighbour.
+	visitedMazeLocations [][2]int
+
+	walking bool
+
 	rng *rand.Rand
+
+	currentRegion Region
+	regions       []Region
 }
 
-func NewMapGenerator(width int, height int) *MapGenerator {
-	return &MapGenerator{
-		Width:               width,
-		Height:              height,
-		terrainGrid:         terrain.NewTerrain(width, height),
-		regionGrid:          grid.NewGrid[int](width, height),
-		roomList:            make([]*Room, 0),
-		unconnectedRoomList: make([]*Room, 0),
+func NewMapGenerator(width int, height int, seed int64, attempts int) *MapGenerator {
+	mg := &MapGenerator{
+		Width:                width,
+		Height:               height,
+		maxRoomAttempts:      attempts,
+		curRoomAttempts:      0,
+		terrainGrid:          terrain.NewTerrain(width, height),
+		regionGrid:           grid.NewGrid[Region](width, height),
+		connectorGrid:        grid.NewGrid[bool](width, height),
+		roomList:             make([]*Room, 0),
+		unconnectedRoomList:  make([]*Room, 0),
+		incompleteRows:       make([]int, 0),
+		incompleteCols:       make([]int, 0),
+		visitedMazeLocations: make([][2]int, 0),
+		regions:              make([]Region, 0),
 	}
-}
 
-func (mg *MapGenerator) Generate(seed int64) {
-	// This generate algorithm uses the "rooms and corridors" method as described
-	// in this article: https://journal.stuffwithstuff.com/2014/12/21/rooms-and-mazes/
-	//
-	// The basic idea is that we start with a blank map, and then we add rooms to
-	// the map. We do this by picking a random room size and position, and
-	// checking if it fits. If it does, we add it to the map and continue. If it
-	// doesn't, we try again with a different random room size and position. We
-	// keep doing this until we can't fit any more rooms into the map.
-	//
-	// Once we have all the rooms in the map, Then we iterate over every tile in the
-	// dungeon. When we find a solid tile where an open area could be, we start
-	// running a maze generator at that point.
-	//
-	// Maze generators work by incrementally carving passages while avoiding cutting
-	// into an already open area. That's how you ensure the maze only has one solution.
-	// If you let it carve into existing passages, you'd get loops.
-	//
-	// This is conveniently exactly what you need to let the maze grow and fill the
-	// odd shaped areas that surround the rooms. In other words, a maze generator is
-	// a randomized flood fill algorithm. Run this on every solid region between the
-	// rooms and we're left with the entire dungeon packed full of disconnected rooms
-	// and mazes.
-	//
-	// We then iterate over every tile in the dungeon again. When we find a wall tile
-	// that
+	for y := 1; y < mg.Height-1; y += 2 {
+		mg.incompleteRows = append(mg.incompleteRows, y)
+	}
 
 	mg.rng = rand.New(rand.NewSource(seed))
 
-	mg.generateRooms(250)
+	return mg
+}
+
+func (mg *MapGenerator) Update() {
+	// This generate algorithm uses the "rooms and corridors" method as described
+	// in this article: https://journal.stuffwithstuff.com/2014/12/21/rooms-and-mazes/
+
+	// This function is intended to be called in the Update() method of a game
+	// loop. It will generate the map incrementally, so that you can draw the
+	// map as it is being generated.
+
+	mg.generateRooms()
 	mg.generateMazes()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Room generation
 
-func (mg *MapGenerator) generateRooms(attempts int) {
+func (mg *MapGenerator) generateRooms() {
 	// The generateRooms() method is where we generate the rooms. We do this by
 	// picking a random room size and position, and checking if it fits. If it
 	// does, we add it to the map and continue. If it doesn't, we try again with
 	// a different random room size and position. We keep doing this until we
 	// can't fit any more rooms into the map.
 
-	for i := 0; i < attempts; i++ {
-		var room Room
+	if mg.doneRooms {
+		return
+	}
 
-		// We generate a random room size from the list of possible room sizes.
-		roomSize := roomSizes[mg.rng.Intn(len(roomSizes))]
-		roomWidth := roomSize[0]
-		roomHeight := roomSize[1]
+	successfullyPlacedRoom := false
 
-		// We generate a random room position between 0 and the map width/height,
-		// with an odd x and y coordinate so that rooms won't end up touching each
-		// other.
-		roomX := 1 + mg.rng.Intn(mg.Width/2)*2
-		roomY := 1 + mg.rng.Intn(mg.Height/2)*2
+	if mg.curRoomAttempts < mg.maxRoomAttempts {
+		for !successfullyPlacedRoom {
+			var room Room
 
-		// We create a new room with the random size and position.
-		room = Room{
-			X:      roomX,
-			Y:      roomY,
-			Width:  roomWidth,
-			Height: roomHeight,
+			// We generate a random room size from the list of possible room sizes.
+			roomSize := roomSizes[mg.rng.Intn(len(roomSizes))]
+			roomWidth := roomSize[0]
+			roomHeight := roomSize[1]
+
+			// We generate a random room position between 0 and the map width/height,
+			// with an odd x and y coordinate so that rooms won't end up touching each
+			// other.
+			roomX := 1 + mg.rng.Intn(mg.Width/2)*2
+			roomY := 1 + mg.rng.Intn(mg.Height/2)*2
+
+			//
+			mg.currentRegion = mg.nextRegion()
+
+			// We create a new room with the random size and position.
+			room = Room{
+				X:      roomX,
+				Y:      roomY,
+				Width:  roomWidth,
+				Height: roomHeight,
+			}
+
+			// We check if the room fits in the map.
+			if mg.roomFits(room) {
+				// We create a new region for the room.
+				mg.currentRegion = mg.nextRegion()
+				room.RegionID = mg.currentRegion.id
+				mg.addRoom(room)
+
+				successfullyPlacedRoom = true
+			}
+
+			mg.curRoomAttempts++
 		}
+	}
 
-		// We check if the room fits in the map.
-		if mg.roomFits(room) {
-			mg.addRoom(room)
-		}
+	if mg.curRoomAttempts >= mg.maxRoomAttempts {
+		mg.doneRooms = true
 	}
 }
 
@@ -187,7 +233,7 @@ func (mg *MapGenerator) addRoom(room Room) {
 	mg.unconnectedRoomList = append(mg.unconnectedRoomList, &room)
 
 	// Update the regions
-	mg.regionGrid.SetRect(room.X, room.Y, room.Width, room.Height, len(mg.roomList))
+	mg.regionGrid.SetRect(room.X, room.Y, room.Width, room.Height, mg.regions[room.RegionID])
 }
 
 func (mg *MapGenerator) Print() {
@@ -232,70 +278,118 @@ func (mg *MapGenerator) generateMazes() {
 	// tile because we only want to start a corridor at the center of each wall,
 	// not at the corners.
 
-	mg.x = 1
-	mg.y = 1
-
-	mg.carveMaze()
-}
-
-func (mg *MapGenerator) carveMaze() {
-	var x, y int
-	roomExists := true
-	for roomExists {
-		x = 1 + mg.rng.Intn(mg.Width/2)*2
-		y = 1 + mg.rng.Intn(mg.Height/2)*2
-		if mg.terrainGrid.Get(x, y) != terrain.Room {
-			roomExists = false
-		}
+	if !mg.doneRooms || mg.doneMazes {
+		return
 	}
 
-	// scan for walls
-	for mg.hasUnconnectedStone() {
-		mg.startWalking()
+	if mg.walking {
+		mg.walk()
+	} else {
+		mg.doneMazes = mg.carveMaze()
 	}
 }
 
-func (mg *MapGenerator) hasUnconnectedStone() bool {
-	// The hasUnconnectedStone() method is where we check if there are any
-	// unconnected stone tiles left in the map. We use this to determine if we
-	// should keep generating corridors.
-	foundStone := false
-
-	// We iterate over every tile in the map.
-	for y := 1; y < mg.Height-1; y += 2 {
+func (mg *MapGenerator) carveMaze() (done bool) {
+	// while there are still rows that have not been fully populated with rooms,
+	// doors and corridors, keep carving.
+	if len(mg.incompleteRows) > 0 {
+		// for this row, we need to keep track of the columns that have not yet
+		// been fully populated with rooms, doors and corridors.
 		for x := 1; x < mg.Width-1; x += 2 {
-			// We check if the tile is stone.
-			if mg.terrainGrid.Get(x, y) == terrain.Stone {
-				// We check if the tile has any stone neighbours.
-				foundStone = true
-				mg.x = x
-				mg.y = y
-				return foundStone
-			}
+			mg.incompleteCols = append(mg.incompleteCols, x)
 		}
+
+		// we process rows and columns in a random order and eliminate them from the
+		// list once they are fully populated. This ensures that we don't end up with
+		// a maze that is biased towards one direction.
+		mg.shuffleArray(mg.incompleteRows)
+		mg.shuffleArray(mg.incompleteCols)
+
+		// we take the first row from the list of incomplete rows, which has been
+		// shuffled. This ensures that we don't end up with a maze that is biased.
+		scanY := mg.incompleteRows[0]
+
+		for len(mg.incompleteCols) > 0 {
+			scanX := mg.incompleteCols[0]
+
+			if mg.terrainGrid.Get(scanX, scanY) == terrain.Stone {
+				mg.x = scanX
+				mg.y = scanY
+
+				// we run a maze walker at the current position. This will carve a
+				// meandering corridor until it exhausts all possible paths. We then
+				// return to this method and continue scanning for incomplete rows and
+				// columns.
+				mg.startWalking()
+				return false
+			}
+			// remove the column from the list of incomplete columns
+			mg.incompleteCols = mg.incompleteCols[1:]
+
+			// if we have no more incomplete columns, we're done with this row
+		}
+
+		// remove the row from the list of incomplete rows
+		mg.incompleteRows = mg.incompleteRows[1:]
+	} else {
+		return true
 	}
 
-	return foundStone
+	return false
 }
 
 func (mg *MapGenerator) startWalking() {
+	// the current location was confirmed to be stone, so we set it to be a
+	// corridor. We also set the regionID to the current regionID, so that we
+	// can later flood fill the map to find all the disconnected regions.
 	mg.terrainGrid.Set(mg.x, mg.y, terrain.Corridor)
+	mg.regionGrid.Set(mg.x, mg.y, mg.currentRegion)
 
-	for ok := true; ok; {
-		ok = mg.mazeWalk()
-		if !ok {
-			ok = mg.mazeHunt()
-		}
+	// we keep track of all the locations we've visited while running the maze
+	// generator. This is used by the maze hunt algorithm to find a previously
+	// visited location that has an unvisited neighbour.
+	mg.visitedMazeLocations = append(mg.visitedMazeLocations, [2]int{mg.x, mg.y})
+
+	mg.walking = true
+}
+
+func (mg *MapGenerator) walk() {
+	mg.walking = mg.mazeWalk()
+	if !mg.walking {
+		mg.walking = mg.mazeHunt()
+	}
+
+	if !mg.walking {
+		// we've exhausted all possible paths from the current location, so we
+		// return to the carveMaze() method, which will continue scanning for
+		// incomplete rows and columns.
+
+		// increment the regionID so that the next maze will have a different
+		// regionID.
+		mg.currentRegion = mg.nextRegion()
 	}
 }
 
 func (mg *MapGenerator) mazeWalk() bool {
+	// The mazeWalk() method is where we walk in a random direction. We do this by
+	// picking a random direction, and checking if we can carve in that direction.
+	// If we can, we carve a corridor in that direction, and then we start walking
+	// from there. If we can't, we try again with a different random direction.
+	// We keep doing this until we can't walk any further.
+
 	directions := mg.shuffleDirections()
 
 	for _, direction := range directions {
 		face := direction
 		if mg.canCarve(face) {
 			mg.doCarve(face)
+
+			// we keep track of all the locations we've visited while running the maze
+			// generator. This is used by the maze hunt algorithm to find a previously
+			// visited location that has an unvisited neighbour.
+			mg.visitedMazeLocations = append(mg.visitedMazeLocations, [2]int{mg.x, mg.y})
+
+			// we return true to indicate that we could walk in this direction.
 			return true
 		}
 	}
@@ -303,65 +397,38 @@ func (mg *MapGenerator) mazeWalk() bool {
 	return false
 }
 
-func (mg *MapGenerator) shuffleArray(a []int) {
-	for i := len(a) - 1; i > 0; i-- {
-		j := mg.rng.Intn(i + 1)
-		a[i], a[j] = a[j], a[i]
-	}
-	return
-}
-
-// hunt for a previously visited location, that has an unvisited neighbour.
 func (mg *MapGenerator) mazeHunt() bool {
-	incompleteRows := make([]int, 0)
+	// The mazeHunt() method is where we hunt for a previously visited location,
+	// that has an unvisited neighbour, that is part of the same region. If we
+	// find one, we set the current location to that location, return true, and
+	// start walking from there. If we can't find one, we return false.
 
-	for y := 1; y < mg.Height-1; y += 2 {
-		incompleteRows = append(incompleteRows, y)
-		mg.shuffleArray(incompleteRows)
-	}
+	// we shuffle the list of visited locations, so that we don't always start
+	// hunting from the same location.
+	mg.shufflePositionArray(mg.visitedMazeLocations)
 
-	for len(incompleteRows) > 0 {
-		scanY := incompleteRows[0]
-		scanX := 0
+	for len(mg.visitedMazeLocations) > 0 {
+		// try each position and see if we could walk from there
+		mg.x = mg.visitedMazeLocations[0][0]
+		mg.y = mg.visitedMazeLocations[0][1]
 
-		for scanX = 1; scanX < mg.Width-1; scanX += 2 {
-			if mg.terrainGrid.Get(scanX, scanY) == terrain.Corridor {
-				if mg.canCarve(North) {
-					mg.x = scanX
-					mg.y = scanY
-					mg.doCarve(North)
-					return true
-				}
-
-				if mg.canCarve(South) {
-					mg.x = scanX
-					mg.y = scanY
-					mg.doCarve(South)
-					return true
-				}
-
-				if mg.canCarve(East) {
-					mg.x = scanX
-					mg.y = scanY
-					mg.doCarve(East)
-					return true
-				}
-
-				if mg.canCarve(West) {
-					mg.x = scanX
-					mg.y = scanY
-					mg.doCarve(West)
-					return true
-				}
+		directions := mg.shuffleDirections()
+		for _, direction := range directions {
+			face := direction
+			if mg.canCarve(face) {
+				mg.doCarve(face)
+				return true
 			}
 		}
-		// fuond a hallway but nothing I could use
-		// remove the row from the list of incomplete rows
-		if scanX >= mg.Width-1 {
-			incompleteRows = incompleteRows[1:]
-		}
+
+		// if we get here, we couldn't walk from any of the previously visited
+		// locations, so we remove the current location from the list of visited
+		// locations and try the next one.
+		mg.visitedMazeLocations = mg.visitedMazeLocations[1:]
 	}
 
+	// if we get here, we couldn't find a previously visited location that has
+	// an unvisited neighbour, so we return false.
 	return false
 }
 
@@ -418,18 +485,26 @@ func (mg *MapGenerator) doCarve(direction Direction) {
 	case North:
 		mg.terrainGrid.Set(mg.x, mg.y-1, terrain.Corridor)
 		mg.terrainGrid.Set(mg.x, mg.y-2, terrain.Corridor)
+		mg.regionGrid.Set(mg.x, mg.y-1, mg.currentRegion)
+		mg.regionGrid.Set(mg.x, mg.y-2, mg.currentRegion)
 		mg.y -= 2
 	case South:
 		mg.terrainGrid.Set(mg.x, mg.y+1, terrain.Corridor)
 		mg.terrainGrid.Set(mg.x, mg.y+2, terrain.Corridor)
+		mg.regionGrid.Set(mg.x, mg.y+1, mg.currentRegion)
+		mg.regionGrid.Set(mg.x, mg.y+2, mg.currentRegion)
 		mg.y += 2
 	case East:
 		mg.terrainGrid.Set(mg.x+1, mg.y, terrain.Corridor)
 		mg.terrainGrid.Set(mg.x+2, mg.y, terrain.Corridor)
+		mg.regionGrid.Set(mg.x+1, mg.y, mg.currentRegion)
+		mg.regionGrid.Set(mg.x+2, mg.y, mg.currentRegion)
 		mg.x += 2
 	case West:
 		mg.terrainGrid.Set(mg.x-1, mg.y, terrain.Corridor)
 		mg.terrainGrid.Set(mg.x-2, mg.y, terrain.Corridor)
+		mg.regionGrid.Set(mg.x-1, mg.y, mg.currentRegion)
+		mg.regionGrid.Set(mg.x-2, mg.y, mg.currentRegion)
 		mg.x -= 2
 	}
 }
@@ -454,4 +529,38 @@ func (mg *MapGenerator) DrawDebug(screen *ebiten.Image) {
 
 func (mg *MapGenerator) drawTile(screen *ebiten.Image, x int, y int, clr color.Color) {
 	vector.DrawFilledRect(screen, float32(x*16), float32(y*16), float32(16), float32(16), clr, false)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Utility functions
+
+func (mg *MapGenerator) shuffleArray(a []int) {
+	for i := len(a) - 1; i > 0; i-- {
+		j := mg.rng.Intn(i + 1)
+		a[i], a[j] = a[j], a[i]
+	}
+	return
+}
+
+func (mg *MapGenerator) shufflePositionArray(a [][2]int) {
+	for i := len(a) - 1; i > 0; i-- {
+		j := mg.rng.Intn(i + 1)
+		a[i], a[j] = a[j], a[i]
+	}
+	return
+}
+
+func (mg *MapGenerator) nextRegion() Region {
+	r := Region{
+		id: len(mg.regions),
+		clr: color.RGBA{
+			uint8(mg.rng.Intn(255)),
+			uint8(mg.rng.Intn(255)),
+			uint8(mg.rng.Intn(255)),
+			0xff,
+		},
+	}
+
+	mg.regions = append(mg.regions, r)
+	return r
 }
