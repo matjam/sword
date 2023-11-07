@@ -38,7 +38,7 @@ type assetConfig struct {
 	Fonts  map[string]fontConfig `json:"fonts"`
 }
 
-func StartAssetManager() {
+func StartAssetManager(configPath string) {
 	if globalAssetManager != nil {
 		slog.Error("asset manager already started")
 		return
@@ -52,7 +52,7 @@ func StartAssetManager() {
 	}
 
 	// load config
-	data, err := os.ReadFile("assets.json")
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		slog.Info("error reading assets.json", err)
 		panic(err)

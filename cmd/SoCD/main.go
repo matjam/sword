@@ -95,7 +95,7 @@ func main() {
 	game := &Game{}
 
 	slog.Info("loading assets ...")
-	assets.StartAssetManager()
+	assets.StartAssetManager("assets.json")
 
 	slog.Info("creating tilemap ...")
 	game.tm = tilemap.NewGrid(600, 400)
