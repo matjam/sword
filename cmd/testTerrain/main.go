@@ -30,7 +30,7 @@ func main() {
 	ConfigureLogger()
 
 	game := &Game{
-		mg: mapgen.NewMapGenerator(1920/16-1, 1080/16, time.Now().UnixNano(), 250),
+		mg: mapgen.NewMapGenerator(1920/16-1, 1080/16, time.Now().UnixNano(), 1000),
 	}
 
 	ebiten.SetWindowSize(1920, 1080)

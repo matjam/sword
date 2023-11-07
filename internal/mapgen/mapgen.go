@@ -83,12 +83,15 @@ type MapGenerator struct {
 	// unvisited neighbour.
 	visitedMazeLocations [][2]int
 
-	walking bool
+	walking    bool
+	connecting bool
 
 	rng *rand.Rand
 
-	currentRegion Region
-	regions       []Region
+	currentRegion      Region
+	regions            []Region
+	unconnectedRegions []*Region
+	connectedRegions   []*Region
 }
 
 func NewMapGenerator(width int, height int, seed int64, attempts int) *MapGenerator {
@@ -125,8 +128,12 @@ func (mg *MapGenerator) Update() {
 	// loop. It will generate the map incrementally, so that you can draw the
 	// map as it is being generated.
 
-	mg.generateRooms()
-	mg.generateMazes()
+	for i := 0; i < 10000; i++ {
+		mg.generateRooms()
+		mg.generateMazes()
+	}
+
+	mg.generateConnectors()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -509,26 +516,111 @@ func (mg *MapGenerator) doCarve(direction Direction) {
 	}
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Connectors
+
+func (mg *MapGenerator) generateConnectors() {
+	if !mg.doneRooms || !mg.doneMazes || mg.doneConnectors {
+		return
+	}
+
+	// The generateConnectors() method is where we generate the connectors. We do
+	// this by finding all the tiles that are adjacent to a corridor, and then
+	// checking if they are adjacent to a room. If they are, we add them to the
+	// list of connectors. We then shuffle the list of connectors, and then we
+	// iterate over the list of connectors and try to connect them to a room.
+
+	if !mg.connecting {
+		// first time through, we find all the connector candidates
+		mg.connecting = true
+
+		for y := 1; y < mg.Height-1; y += 1 {
+			for x := 1; x < mg.Width-1; x += 1 {
+				ok, _, _ := mg.isConnectorTile(x, y)
+				if ok {
+					mg.connectorGrid.Set(x, y, true)
+				}
+			}
+		}
+	}
+
+	mg.doneConnectors = true
+
+}
+
+func (mg *MapGenerator) isConnectorTile(x, y int) (isConnector bool, region1, region2 int) {
+	// Determine if the current tile connects two different regions. We only
+	// conside tiles that are rooms or corridors.
+
+	e := mg.terrainGrid.Get(x+1, y)
+	w := mg.terrainGrid.Get(x-1, y)
+
+	if (e == terrain.Room && w == terrain.Room) ||
+		(e == terrain.Corridor && w == terrain.Corridor) ||
+		(e == terrain.Room && w == terrain.Corridor) ||
+		(e == terrain.Corridor && w == terrain.Room) {
+		eRegion := mg.regionGrid.Get(x+1, y)
+		wRegion := mg.regionGrid.Get(x-1, y)
+		if eRegion.id != wRegion.id {
+			return true, eRegion.id, wRegion.id
+		}
+	}
+
+	n := mg.terrainGrid.Get(x, y-1)
+	s := mg.terrainGrid.Get(x, y+1)
+
+	if (n == terrain.Room && s == terrain.Room) ||
+		(n == terrain.Corridor && s == terrain.Corridor) ||
+		(n == terrain.Room && s == terrain.Corridor) ||
+		(n == terrain.Corridor && s == terrain.Room) {
+		nRegion := mg.regionGrid.Get(x, y-1)
+		sRegion := mg.regionGrid.Get(x, y+1)
+		if nRegion.id != sRegion.id {
+			return true, nRegion.id, sRegion.id
+		}
+	}
+
+	return false, 0, 0
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Drawing
+
 func (mg *MapGenerator) DrawDebug(screen *ebiten.Image) {
 	for y := 0; y < mg.Height; y++ {
 		for x := 0; x < mg.Width; x++ {
 			t := mg.terrainGrid.Get(x, y)
+			r := mg.regionGrid.Get(x, y)
+			c := mg.connectorGrid.Get(x, y)
+
+			if c {
+				mg.drawDot(screen, x, y, color.RGBA{0xff, 0xff, 0xff, 0xff})
+			}
+
+			if r.clr == nil {
+				continue
+			}
 			switch t {
 			case terrain.Stone:
-				mg.drawTile(screen, x, y, color.RGBA{0x33, 0x33, 0x33, 0xff})
+				mg.drawTile(screen, x, y, r.clr)
 			case terrain.Room:
-				mg.drawTile(screen, x, y, color.RGBA{0x00, 0x99, 0x00, 0xff})
+				mg.drawTile(screen, x, y, r.clr)
 			case terrain.Corridor:
-				mg.drawTile(screen, x, y, color.RGBA{0x99, 0x99, 0x99, 0xff})
+				mg.drawTile(screen, x, y, r.clr)
 			case terrain.Door:
-				mg.drawTile(screen, x, y, color.RGBA{0x99, 0x00, 0x00, 0xff})
+				mg.drawTile(screen, x, y, r.clr)
 			}
+
 		}
 	}
 }
 
 func (mg *MapGenerator) drawTile(screen *ebiten.Image, x int, y int, clr color.Color) {
 	vector.DrawFilledRect(screen, float32(x*16), float32(y*16), float32(16), float32(16), clr, false)
+}
+
+func (mg *MapGenerator) drawDot(screen *ebiten.Image, x int, y int, clr color.Color) {
+	vector.DrawFilledRect(screen, float32(x*16+6), float32(y*16+6), float32(4), float32(4), clr, false)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -554,9 +646,9 @@ func (mg *MapGenerator) nextRegion() Region {
 	r := Region{
 		id: len(mg.regions),
 		clr: color.RGBA{
-			uint8(mg.rng.Intn(255)),
-			uint8(mg.rng.Intn(255)),
-			uint8(mg.rng.Intn(255)),
+			uint8(mg.rng.Intn(192) + 64),
+			uint8(mg.rng.Intn(192) + 64),
+			uint8(mg.rng.Intn(192) + 64),
 			0xff,
 		},
 	}
