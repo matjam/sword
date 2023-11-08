@@ -29,7 +29,7 @@ func (mg *MapGenerator) generateMazes() {
 	} else {
 		done := mg.carveMaze()
 		if done {
-			mg.phase = PhaseConnectors
+			mg.Phase = PhaseConnectors
 		}
 	}
 }

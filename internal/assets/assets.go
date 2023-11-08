@@ -1,7 +1,6 @@
 package assets
 
 import (
-	"encoding/json"
 	"image"
 	"image/color"
 	"log/slog"
@@ -11,6 +10,8 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
+	"github.com/matjam/sword/internal/config"
+	"github.com/matjam/sword/internal/tileset"
 	woff "github.com/tdewolff/canvas/font"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
@@ -26,6 +27,7 @@ type AssetManager struct {
 	tiles     map[string][]*ebiten.Image
 	fonts     map[string]font.Face
 	fontSizes map[string]int
+	tileSet   map[string]*tileset.Tileset
 }
 
 type fontConfig struct {
@@ -49,36 +51,38 @@ func StartAssetManager(configPath string) {
 		tiles:     make(map[string][]*ebiten.Image),
 		fonts:     make(map[string]font.Face),
 		fontSizes: make(map[string]int),
+		tileSet:   make(map[string]*tileset.Tileset),
 	}
 
-	// load config
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		slog.Info("error reading assets.json", err)
-		panic(err)
-	}
-	config := assetConfig{}
-	err = json.Unmarshal(data, &config)
-	if err != nil {
-		slog.Info("error reading assets.json", err)
-		panic(err)
-	}
+	assetConfig := config.Load().Assets
 
 	// load images
-	for name, path := range config.Images {
-		m.loadImage(path, name)
+	for name, path := range assetConfig.Images {
+		m.images[name] = m.loadImage(path, name)
 	}
 
 	// load fonts
-	for name, fontConfig := range config.Fonts {
+	for name, fontConfig := range assetConfig.Fonts {
 		m.loadFont(fontConfig.Path, name, fontConfig.Size)
 		m.images[name] = m.CreateTilesheet(name, int(fontConfig.Size))
 	}
 
+	// load tilesets
+	for name, tilesetConfig := range assetConfig.Tilesets {
+		atlas := m.loadImage(tilesetConfig.Path, name)
+
+		m.tileSet[name] = tileset.Load(name,
+			atlas,
+			tilesetConfig.TileSize,
+			tilesetConfig.Columns,
+			tilesetConfig.Rows,
+			tilesetConfig.Autotiles,
+			tilesetConfig.Fixtures)
+	}
 	globalAssetManager = &m
 }
 
-func (am *AssetManager) loadImage(path string, name string) {
+func (am *AssetManager) loadImage(path string, name string) *ebiten.Image {
 	reader, err := os.Open(path)
 	if err != nil {
 		slog.Error("error opening image", err)
@@ -92,9 +96,11 @@ func (am *AssetManager) loadImage(path string, name string) {
 		panic(err)
 	}
 
-	am.images[name] = m
+	img := ebiten.NewImageFromImage(m)
 
 	slog.Info("image loaded", "name", name, "path", path)
+
+	return img
 }
 
 func (am *AssetManager) loadFont(fontPath string, name string, size float64) {
@@ -208,4 +214,8 @@ func GetFontSize(name string) int {
 
 func GetImage(name string) image.Image {
 	return globalAssetManager.GetImage(name)
+}
+
+func GetTileset(name string) *tileset.Tileset {
+	return globalAssetManager.tileSet[name]
 }

@@ -20,7 +20,7 @@ func (mg *MapGenerator) removeDeadEnds() {
 		mg.deadEndsRemoved++
 	}
 	if mg.deadEndsPreviouslyRemoved == mg.deadEndsRemoved {
-		mg.phase = PhaseDone
+		mg.Phase = PhaseDone
 	}
 }
 

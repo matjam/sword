@@ -1,6 +1,5 @@
 {
     "images": {
-        "full": "assets/Full.png",
         "boxy": "assets/16x16-sb-ascii.png"
     },
     "fonts": {
@@ -11,6 +10,37 @@
         "square": {
             "path": "assets/KreativeSquareSM.ttf",
             "size": 16
+        }
+    },
+    "tilesets": {
+        "rogue_environment": {
+            "path": "assets/RogueEnvironment16x16.png",
+            "tile_size": 16,
+            "columns": 16,
+            "rows": 16,
+            "autoTiles": [
+                [12, 1],
+                [10, 3],
+                [10, 1],
+                [8, 3],
+                [9, 2],
+                [8, 2],
+                [8, 0],
+                [8, 1],
+                [9, 1],
+                [11, 3],
+                [10, 0],
+                [9, 3],
+                [11, 0],
+                [11, 1],
+                [10, 2],
+                [9, 0]
+            ],
+            "fixtures": {
+                "door_unlocked": [1, 8],
+                "floor_dots": [13, 1],
+                "floor_checker_1": [15, 0]
+            }
         }
     }
 }

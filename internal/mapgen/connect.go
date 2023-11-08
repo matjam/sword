@@ -16,7 +16,7 @@ func (mg *MapGenerator) connectRegions() {
 
 	// if there's only one region, we're done.
 	if len(mg.regions) == 1 {
-		mg.phase = PhaseRemoveDeadEnds
+		mg.Phase = PhaseRemoveDeadEnds
 		return
 	}
 
@@ -28,7 +28,7 @@ func (mg *MapGenerator) connectRegions() {
 		mg.findRootConnectors()
 
 		if len(mg.rootConnectors) == 0 {
-			mg.phase = PhaseRemoveDeadEnds
+			mg.Phase = PhaseRemoveDeadEnds
 			return
 		}
 

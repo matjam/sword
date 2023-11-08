@@ -69,7 +69,7 @@ type MapGenerator struct {
 	Width  int
 	Height int
 
-	phase GenerationPhase
+	Phase GenerationPhase
 
 	maxRoomAttempts int
 	curRoomAttempts int
@@ -118,7 +118,7 @@ type MapGenerator struct {
 
 func NewMapGenerator(width int, height int, seed int64, attempts int) *MapGenerator {
 	mg := &MapGenerator{
-		phase:                PhaseRooms,
+		Phase:                PhaseRooms,
 		Width:                width,
 		Height:               height,
 		maxRoomAttempts:      attempts,
@@ -153,8 +153,8 @@ func (mg *MapGenerator) Update() {
 	// map as it is being generated.
 
 	startTime := time.Now()
-	for mg.phase != PhaseDone {
-		switch mg.phase {
+	for mg.Phase != PhaseDone {
+		switch mg.Phase {
 		case PhaseRooms:
 			mg.generateRooms()
 		case PhaseMazes:
@@ -172,6 +172,10 @@ func (mg *MapGenerator) Update() {
 	endTime := time.Now()
 
 	slog.Debug("Map generation finished", "time", endTime.Sub(startTime))
+}
+
+func (mg *MapGenerator) Terrain() *terrain.Terrain {
+	return mg.terrainGrid
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -30,7 +30,7 @@ func (mg *MapGenerator) generateConnectors() {
 		}
 	}
 
-	mg.phase = PhaseConnectingRegions
+	mg.Phase = PhaseConnectingRegions
 }
 
 func (mg *MapGenerator) isConnectorTile(x, y int) (isConnector bool, region1, region2 *Region) {

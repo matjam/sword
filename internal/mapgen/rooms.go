@@ -55,7 +55,7 @@ func (mg *MapGenerator) generateRooms() {
 	}
 
 	if mg.curRoomAttempts >= mg.maxRoomAttempts {
-		mg.phase = PhaseMazes
+		mg.Phase = PhaseMazes
 	}
 }
 
