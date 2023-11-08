@@ -1,4 +1,4 @@
-# Sword of Inevitable Doom
+# Sword of Certain Doom
 
 It will be a generic roguelike, with an ECS of some description. Trying to hand
 roll as much as possible except for all the graphics stuff, using ebitengine

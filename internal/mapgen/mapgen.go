@@ -1,7 +1,9 @@
 package mapgen
 
 import (
+	"fmt"
 	"image/color"
+	"log/slog"
 	"math/rand"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -31,7 +33,7 @@ type Room struct {
 	Width  int
 	Height int
 
-	RegionID int
+	Region *Region
 }
 
 type Direction int
@@ -48,23 +50,30 @@ type Region struct {
 	clr color.Color
 }
 
+type GenerationPhase int
+
+const (
+	PhaseRooms GenerationPhase = iota
+	PhaseMazes
+	PhaseConnectors
+	PhaseConnectingRegions
+	PhaseDone
+)
+
 type MapGenerator struct {
 	Width  int
 	Height int
 
-	doneRooms      bool
-	doneMazes      bool
-	doneConnectors bool
+	phase GenerationPhase
 
 	maxRoomAttempts int
 	curRoomAttempts int
 
 	terrainGrid   *terrain.Terrain
-	regionGrid    *grid.Grid[Region]
 	connectorGrid *grid.Grid[bool]
 
-	roomList            []*Room
-	unconnectedRoomList []*Room
+	roomList         []*Room
+	unconnectedRooms []*Room
 
 	// state for maze generator
 	x int
@@ -88,27 +97,30 @@ type MapGenerator struct {
 
 	rng *rand.Rand
 
-	currentRegion      Region
-	regions            []Region
+	regions            []*Region
 	unconnectedRegions []*Region
 	connectedRegions   []*Region
+	regionGrid         *grid.Grid[*Region]
+	currentRegion      *Region
+	rootRegion         *Region
 }
 
 func NewMapGenerator(width int, height int, seed int64, attempts int) *MapGenerator {
 	mg := &MapGenerator{
+		phase:                PhaseRooms,
 		Width:                width,
 		Height:               height,
 		maxRoomAttempts:      attempts,
 		curRoomAttempts:      0,
 		terrainGrid:          terrain.NewTerrain(width, height),
-		regionGrid:           grid.NewGrid[Region](width, height),
+		regionGrid:           grid.NewGrid[*Region](width, height),
 		connectorGrid:        grid.NewGrid[bool](width, height),
 		roomList:             make([]*Room, 0),
-		unconnectedRoomList:  make([]*Room, 0),
+		unconnectedRooms:     make([]*Room, 0),
 		incompleteRows:       make([]int, 0),
 		incompleteCols:       make([]int, 0),
 		visitedMazeLocations: make([][2]int, 0),
-		regions:              make([]Region, 0),
+		regions:              make([]*Region, 0),
 	}
 
 	for y := 1; y < mg.Height-1; y += 2 {
@@ -123,17 +135,27 @@ func NewMapGenerator(width int, height int, seed int64, attempts int) *MapGenera
 func (mg *MapGenerator) Update() {
 	// This generate algorithm uses the "rooms and corridors" method as described
 	// in this article: https://journal.stuffwithstuff.com/2014/12/21/rooms-and-mazes/
-
+	//
 	// This function is intended to be called in the Update() method of a game
 	// loop. It will generate the map incrementally, so that you can draw the
 	// map as it is being generated.
 
-	for i := 0; i < 10000; i++ {
-		mg.generateRooms()
-		mg.generateMazes()
+	for mg.phase != PhaseDone {
+		switch mg.phase {
+		case PhaseRooms:
+			mg.generateRooms()
+		case PhaseMazes:
+			mg.generateMazes()
+		case PhaseConnectors:
+			mg.generateConnectors()
+			return
+		case PhaseConnectingRegions:
+			mg.connectRegions()
+			return
+		default:
+			return
+		}
 	}
-
-	mg.generateConnectors()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,13 +168,12 @@ func (mg *MapGenerator) generateRooms() {
 	// a different random room size and position. We keep doing this until we
 	// can't fit any more rooms into the map.
 
-	if mg.doneRooms {
-		return
-	}
-
 	successfullyPlacedRoom := false
 
 	if mg.curRoomAttempts < mg.maxRoomAttempts {
+
+		mg.currentRegion = mg.nextRegion()
+
 		for !successfullyPlacedRoom {
 			var room Room
 
@@ -168,7 +189,6 @@ func (mg *MapGenerator) generateRooms() {
 			roomY := 1 + mg.rng.Intn(mg.Height/2)*2
 
 			//
-			mg.currentRegion = mg.nextRegion()
 
 			// We create a new room with the random size and position.
 			room = Room{
@@ -176,13 +196,11 @@ func (mg *MapGenerator) generateRooms() {
 				Y:      roomY,
 				Width:  roomWidth,
 				Height: roomHeight,
+				Region: mg.currentRegion,
 			}
 
 			// We check if the room fits in the map.
 			if mg.roomFits(room) {
-				// We create a new region for the room.
-				mg.currentRegion = mg.nextRegion()
-				room.RegionID = mg.currentRegion.id
 				mg.addRoom(room)
 
 				successfullyPlacedRoom = true
@@ -193,7 +211,7 @@ func (mg *MapGenerator) generateRooms() {
 	}
 
 	if mg.curRoomAttempts >= mg.maxRoomAttempts {
-		mg.doneRooms = true
+		mg.phase = PhaseMazes
 	}
 }
 
@@ -207,7 +225,7 @@ func (mg *MapGenerator) roomFits(room Room) bool {
 	}
 
 	// We check if the room overlaps with any other rooms.
-	for _, r := range mg.unconnectedRoomList {
+	for _, r := range mg.roomList {
 		if room.Overlaps(r) {
 			return false
 		}
@@ -236,11 +254,11 @@ func (mg *MapGenerator) addRoom(room Room) {
 	// setting the tiles in the room to the correct type.
 	mg.terrainGrid.SetRect(room.X, room.Y, room.Width, room.Height, terrain.Room)
 
-	// We add the room to the list of unconnected rooms.
-	mg.unconnectedRoomList = append(mg.unconnectedRoomList, &room)
+	// We add the room to the list of rooms.
+	mg.roomList = append(mg.roomList, &room)
 
 	// Update the regions
-	mg.regionGrid.SetRect(room.X, room.Y, room.Width, room.Height, mg.regions[room.RegionID])
+	mg.regionGrid.SetRect(room.X, room.Y, room.Width, room.Height, room.Region)
 }
 
 func (mg *MapGenerator) Print() {
@@ -285,14 +303,13 @@ func (mg *MapGenerator) generateMazes() {
 	// tile because we only want to start a corridor at the center of each wall,
 	// not at the corners.
 
-	if !mg.doneRooms || mg.doneMazes {
-		return
-	}
-
 	if mg.walking {
 		mg.walk()
 	} else {
-		mg.doneMazes = mg.carveMaze()
+		done := mg.carveMaze()
+		if done {
+			mg.phase = PhaseConnectors
+		}
 	}
 }
 
@@ -309,8 +326,8 @@ func (mg *MapGenerator) carveMaze() (done bool) {
 		// we process rows and columns in a random order and eliminate them from the
 		// list once they are fully populated. This ensures that we don't end up with
 		// a maze that is biased towards one direction.
-		mg.shuffleArray(mg.incompleteRows)
-		mg.shuffleArray(mg.incompleteCols)
+		shuffleArray(mg.rng, mg.incompleteRows)
+		shuffleArray(mg.rng, mg.incompleteCols)
 
 		// we take the first row from the list of incomplete rows, which has been
 		// shuffled. This ensures that we don't end up with a maze that is biased.
@@ -346,6 +363,9 @@ func (mg *MapGenerator) carveMaze() (done bool) {
 }
 
 func (mg *MapGenerator) startWalking() {
+	// create a new region for the maze
+	mg.currentRegion = mg.nextRegion()
+
 	// the current location was confirmed to be stone, so we set it to be a
 	// corridor. We also set the regionID to the current regionID, so that we
 	// can later flood fill the map to find all the disconnected regions.
@@ -357,6 +377,8 @@ func (mg *MapGenerator) startWalking() {
 	// visited location that has an unvisited neighbour.
 	mg.visitedMazeLocations = append(mg.visitedMazeLocations, [2]int{mg.x, mg.y})
 
+	// we only start walking if we're not already walking; we don't want to start
+	// a new walker if we're already walking.
 	mg.walking = true
 }
 
@@ -412,7 +434,7 @@ func (mg *MapGenerator) mazeHunt() bool {
 
 	// we shuffle the list of visited locations, so that we don't always start
 	// hunting from the same location.
-	mg.shufflePositionArray(mg.visitedMazeLocations)
+	shuffleArray(mg.rng, mg.visitedMazeLocations)
 
 	for len(mg.visitedMazeLocations) > 0 {
 		// try each position and see if we could walk from there
@@ -520,32 +542,22 @@ func (mg *MapGenerator) doCarve(direction Direction) {
 // Connectors
 
 func (mg *MapGenerator) generateConnectors() {
-	if !mg.doneRooms || !mg.doneMazes || mg.doneConnectors {
-		return
-	}
-
 	// The generateConnectors() method is where we generate the connectors. We do
 	// this by finding all the tiles that are adjacent to a corridor, and then
 	// checking if they are adjacent to a room. If they are, we add them to the
 	// list of connectors. We then shuffle the list of connectors, and then we
 	// iterate over the list of connectors and try to connect them to a room.
 
-	if !mg.connecting {
-		// first time through, we find all the connector candidates
-		mg.connecting = true
-
-		for y := 1; y < mg.Height-1; y += 1 {
-			for x := 1; x < mg.Width-1; x += 1 {
-				ok, _, _ := mg.isConnectorTile(x, y)
-				if ok {
-					mg.connectorGrid.Set(x, y, true)
-				}
+	for y := 1; y < mg.Height-1; y += 1 {
+		for x := 1; x < mg.Width-1; x += 1 {
+			ok, _, _ := mg.isConnectorTile(x, y)
+			if ok {
+				mg.connectorGrid.Set(x, y, true)
 			}
 		}
 	}
 
-	mg.doneConnectors = true
-
+	mg.phase = PhaseConnectingRegions
 }
 
 func (mg *MapGenerator) isConnectorTile(x, y int) (isConnector bool, region1, region2 int) {
@@ -584,6 +596,51 @@ func (mg *MapGenerator) isConnectorTile(x, y int) (isConnector bool, region1, re
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Connecting regions
+
+func (mg *MapGenerator) connectRegions() {
+	if len(mg.unconnectedRegions) == 0 {
+		mg.phase = PhaseDone
+		return
+	}
+
+	slog.Info(fmt.Sprintf("there are %d unconnected regions", len(mg.unconnectedRegions)))
+	slog.Info(fmt.Sprintf("there are %v rooms", len(mg.roomList)))
+
+	if mg.rootRegion == nil {
+		// all rooms start out as unconnected
+		for _, room := range mg.roomList {
+			mg.unconnectedRooms = append(mg.unconnectedRooms, room)
+		}
+
+		// shuffle the unconnected regions
+		shuffleArray(mg.rng, mg.unconnectedRooms)
+
+		// grab the last room from the list
+		rootRoom := mg.unconnectedRooms[len(mg.unconnectedRooms)-1]
+		mg.unconnectedRooms = mg.unconnectedRooms[:len(mg.unconnectedRooms)-1]
+		mg.rootRegion = rootRoom.Region
+
+		// remove the root region from the list of unconnected regions
+		var newUnconnectedRegions []*Region
+		for i, r := range mg.unconnectedRegions {
+			if r.id == mg.rootRegion.id {
+				newUnconnectedRegions = removeIndex(mg.unconnectedRegions, i)
+				break
+			}
+		}
+		mg.unconnectedRegions = newUnconnectedRegions
+
+		// set the color of the root region to white
+		mg.rootRegion.clr = color.RGBA{0xff, 0xff, 0xff, 0xff}
+
+		slog.Info(fmt.Sprintf("room at %v,%v selected as root region", rootRoom.X, rootRoom.Y))
+
+		mg.phase = PhaseDone
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Drawing
 
 func (mg *MapGenerator) DrawDebug(screen *ebiten.Image) {
@@ -591,26 +648,27 @@ func (mg *MapGenerator) DrawDebug(screen *ebiten.Image) {
 		for x := 0; x < mg.Width; x++ {
 			t := mg.terrainGrid.Get(x, y)
 			r := mg.regionGrid.Get(x, y)
-			c := mg.connectorGrid.Get(x, y)
 
+			clr := color.Color(color.RGBA{0x00, 0x00, 0x00, 0xff})
+			if r != nil {
+				clr = r.clr
+			}
+
+			switch t {
+			case terrain.Stone:
+				mg.drawTile(screen, x, y, clr)
+			case terrain.Room:
+				mg.drawTile(screen, x, y, clr)
+			case terrain.Corridor:
+				mg.drawTile(screen, x, y, clr)
+			case terrain.Door:
+				mg.drawTile(screen, x, y, clr)
+			}
+
+			c := mg.connectorGrid.Get(x, y)
 			if c {
 				mg.drawDot(screen, x, y, color.RGBA{0xff, 0xff, 0xff, 0xff})
 			}
-
-			if r.clr == nil {
-				continue
-			}
-			switch t {
-			case terrain.Stone:
-				mg.drawTile(screen, x, y, r.clr)
-			case terrain.Room:
-				mg.drawTile(screen, x, y, r.clr)
-			case terrain.Corridor:
-				mg.drawTile(screen, x, y, r.clr)
-			case terrain.Door:
-				mg.drawTile(screen, x, y, r.clr)
-			}
-
 		}
 	}
 }
@@ -626,33 +684,31 @@ func (mg *MapGenerator) drawDot(screen *ebiten.Image, x int, y int, clr color.Co
 ////////////////////////////////////////////////////////////////////////////////
 // Utility functions
 
-func (mg *MapGenerator) shuffleArray(a []int) {
+func shuffleArray[T any](rng *rand.Rand, a []T) []T {
+	// woo, Fisher-Yates shuffle with generics!
 	for i := len(a) - 1; i > 0; i-- {
-		j := mg.rng.Intn(i + 1)
+		j := rng.Intn(i + 1)
 		a[i], a[j] = a[j], a[i]
 	}
-	return
+	return a
 }
 
-func (mg *MapGenerator) shufflePositionArray(a [][2]int) {
-	for i := len(a) - 1; i > 0; i-- {
-		j := mg.rng.Intn(i + 1)
-		a[i], a[j] = a[j], a[i]
-	}
-	return
-}
-
-func (mg *MapGenerator) nextRegion() Region {
+func (mg *MapGenerator) nextRegion() *Region {
 	r := Region{
 		id: len(mg.regions),
 		clr: color.RGBA{
-			uint8(mg.rng.Intn(192) + 64),
-			uint8(mg.rng.Intn(192) + 64),
-			uint8(mg.rng.Intn(192) + 64),
+			uint8(mg.rng.Intn(192) + 16),
+			uint8(mg.rng.Intn(192) + 16),
+			uint8(mg.rng.Intn(192) + 16),
 			0xff,
 		},
 	}
 
-	mg.regions = append(mg.regions, r)
-	return r
+	mg.regions = append(mg.regions, &r)
+	mg.unconnectedRegions = append(mg.unconnectedRegions, &r)
+	return &r
+}
+
+func removeIndex[T any](s []T, index int) []T {
+	return append(s[:index], s[index+1:]...)
 }
